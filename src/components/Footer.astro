@@ -1,0 +1,15 @@
+---
+import { SITE, SOCIAL } from '../config';
+const year = new Date().getFullYear();
+const range = year > SITE.since ? `${SITE.since}–${year}` : `${SITE.since}`;
+---
+<footer class="mt-24 border-t border-[var(--color-border)]">
+  <div class="mx-auto flex max-w-4xl flex-col gap-2 px-5 py-8 text-sm text-[var(--color-muted)] sm:flex-row sm:items-center sm:justify-between">
+    <p>© {range} {SITE.author} · 内容以技术交流为目的</p>
+    <p class="flex items-center gap-4">
+      <a href="/rss.xml" class="hover:text-[var(--color-fg)]">RSS</a>
+      <a href={SOCIAL.github} target="_blank" rel="noopener" class="hover:text-[var(--color-fg)]">GitHub</a>
+      <span>Built with Astro</span>
+    </p>
+  </div>
+</footer>

@@ -1,0 +1,32 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getPosts, tagCounts, tagSlug } from '../../lib/utils';
+
+const posts = await getPosts();
+const tags = tagCounts(posts);
+const max = Math.max(...tags.map((t) => t.count), 1);
+---
+<Base title="标签" description="按主题浏览全部文章标签">
+  <section class="mx-auto max-w-4xl px-5 pt-14">
+    <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">标签</h1>
+    <p class="mt-2 text-[var(--color-muted)]">共 {tags.length} 个标签，{posts.length} 篇文章。</p>
+
+    <ul class="mt-8 flex flex-wrap gap-2.5">
+      {tags.map(({ tag, count }) => {
+        const scale = 0.85 + (count / max) * 0.6;
+        return (
+          <li>
+            <a
+              href={`/tags/${tagSlug(tag)}`}
+              class="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 py-1.5 font-mono text-[var(--color-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+              style={`font-size:${scale}rem`}
+            >
+              <span>#{tag}</span>
+              <span class="text-xs opacity-60">{count}</span>
+            </a>
+          </li>
+        );
+      })}
+    </ul>
+  </section>
+</Base>

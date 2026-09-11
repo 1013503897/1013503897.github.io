@@ -1,0 +1,169 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/typography';
+
+/* Dark mode is driven by a data-theme attribute on <html> (shared with
+   Expressive Code and Mermaid), not the media query. */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo,
+    Consolas, 'Liberation Mono', monospace;
+
+  /* light palette */
+  --color-bg: #fbfbfa;
+  --color-surface: #ffffff;
+  --color-border: #e7e7e4;
+  --color-fg: #1a1a19;
+  --color-muted: #6b6b66;
+  --color-accent: #d6482b; /* warm vermilion — a nod to 看雪/朱砂 */
+  --color-accent-fg: #ffffff;
+}
+
+:root[data-theme='dark'] {
+  --color-bg: #0e0e10;
+  --color-surface: #17171a;
+  --color-border: #262629;
+  --color-fg: #e9e9e6;
+  --color-muted: #9a9a94;
+  --color-accent: #ff6f4d;
+  --color-accent-fg: #14140f;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+  }
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--color-accent) 28%, transparent);
+  }
+  a {
+    color: inherit;
+  }
+  /* wrap-style autolinked headings: keep them looking like plain headings */
+  .heading-anchor {
+    text-decoration: none;
+    color: inherit;
+  }
+  .prose :is(h1, h2, h3, h4) {
+    scroll-margin-top: 5rem;
+    position: relative;
+  }
+  .prose :is(h2, h3) .heading-anchor::after {
+    content: '#';
+    position: absolute;
+    left: -1.1em;
+    color: var(--color-accent);
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .prose :is(h2, h3):hover .heading-anchor::after {
+    opacity: 0.6;
+  }
+}
+
+/* Themed prose */
+.prose {
+  --tw-prose-body: var(--color-fg);
+  --tw-prose-headings: var(--color-fg);
+  --tw-prose-links: var(--color-accent);
+  --tw-prose-bold: var(--color-fg);
+  --tw-prose-quotes: var(--color-muted);
+  --tw-prose-quote-borders: var(--color-accent);
+  --tw-prose-hr: var(--color-border);
+  --tw-prose-th-borders: var(--color-border);
+  --tw-prose-td-borders: var(--color-border);
+  --tw-prose-captions: var(--color-muted);
+  --tw-prose-code: var(--color-fg);
+  max-width: none;
+}
+.prose a {
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+/* inline code (block code is handled by Expressive Code) */
+.prose :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: color-mix(in oklab, var(--color-accent) 12%, transparent);
+  color: var(--color-fg);
+  padding: 0.15em 0.4em;
+  border-radius: 0.35rem;
+  font-weight: 500;
+}
+.prose :not(pre) > code::before,
+.prose :not(pre) > code::after {
+  content: none;
+}
+.prose img {
+  border-radius: 0.6rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  margin-inline: auto;
+}
+.prose figure figcaption,
+.prose img + em {
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+.prose table {
+  font-size: 0.9rem;
+  display: block;
+  overflow-x: auto;
+}
+.prose blockquote {
+  font-style: normal;
+  background: color-mix(in oklab, var(--color-accent) 5%, transparent);
+  border-inline-start-width: 3px;
+  padding: 0.2rem 1rem;
+  border-radius: 0 0.4rem 0.4rem 0;
+}
+.prose blockquote p:first-of-type::before,
+.prose blockquote p:last-of-type::after {
+  content: none;
+}
+
+/* Expressive Code: soften into the surface */
+.expressive-code {
+  margin: 1.4rem 0;
+}
+.expressive-code .frame {
+  border: 1px solid var(--color-border);
+}
+
+/* Mermaid diagrams */
+pre.mermaid {
+  background: transparent;
+  border: 0;
+  text-align: center;
+  margin: 1.4rem 0;
+  padding: 0;
+  overflow-x: auto;
+}
+pre.mermaid:not([data-processed]) {
+  color: transparent; /* hide raw source until rendered */
+  min-height: 2rem;
+}
+
+/* KaTeX: allow long equations to scroll on mobile */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25rem 0;
+}

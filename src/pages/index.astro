@@ -1,0 +1,32 @@
+---
+import Base from '../layouts/Base.astro';
+import PostCard from '../components/PostCard.astro';
+import { getPosts, tagCounts } from '../lib/utils';
+import { SITE, SOCIAL } from '../config';
+
+const posts = await getPosts();
+const topTags = tagCounts(posts).slice(0, 10);
+---
+<Base>
+  <section class="mx-auto max-w-4xl px-5 pt-14 pb-10">
+    <p class="mb-3 font-mono text-sm text-[var(--color-accent)]">$ whoami</p>
+    <h1 class="text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
+      移动安全 · 逆向工程手记
+    </h1>
+    <p class="mt-4 max-w-2xl text-[var(--color-muted)] leading-relaxed">
+      {SITE.description} 这里记录把二进制、协议与加固一点点拆开的过程——
+      能公开考证的技术机制照写，完整成品钥匙与业务动机不写。
+    </p>
+    <div class="mt-6 flex flex-wrap items-center gap-3 text-sm">
+      <a href="/tags" class="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-[var(--color-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-fg)]">按标签浏览</a>
+      <a href={SOCIAL.github} target="_blank" rel="noopener" class="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-[var(--color-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-fg)]">GitHub</a>
+      <span class="font-mono text-xs text-[var(--color-muted)]">{posts.length} 篇文章</span>
+    </div>
+  </section>
+
+  <section class="mx-auto max-w-4xl px-5">
+    <div class="grid gap-4 sm:grid-cols-2">
+      {posts.map((post) => <PostCard post={post} />)}
+    </div>
+  </section>
+</Base>

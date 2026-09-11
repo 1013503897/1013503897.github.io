@@ -1,0 +1,54 @@
+---
+import type { MarkdownHeading } from 'astro';
+interface Props {
+  headings: MarkdownHeading[];
+}
+const { headings } = Astro.props;
+// Only show h2/h3 for a clean outline
+const toc = headings.filter((h) => h.depth >= 2 && h.depth <= 3);
+---
+{toc.length > 1 && (
+  <nav class="toc text-sm" aria-label="目录">
+    <p class="mb-3 font-mono text-xs uppercase tracking-widest text-[var(--color-muted)]">目录</p>
+    <ul class="space-y-1.5 border-l border-[var(--color-border)]">
+      {toc.map((h) => (
+        <li>
+          <a
+            href={`#${h.slug}`}
+            data-toc-link={h.slug}
+            class:list={[
+              'block border-l-2 border-transparent py-0.5 text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)]',
+              h.depth === 2 ? 'pl-3' : 'pl-6 text-[0.8rem]',
+            ]}
+          >{h.text}</a>
+        </li>
+      ))}
+    </ul>
+  </nav>
+)}
+
+<script is:inline>
+  (() => {
+    const links = [...document.querySelectorAll('[data-toc-link]')];
+    if (!links.length) return;
+    const map = new Map(links.map((l) => [l.getAttribute('data-toc-link'), l]));
+    const active = 'text-[var(--color-accent)] !border-[var(--color-accent)] font-medium';
+    let current = null;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            const link = map.get(e.target.id);
+            if (link && link !== current) {
+              if (current) current.classList.remove(...active.split(' '));
+              link.classList.add(...active.split(' '));
+              current = link;
+            }
+          }
+        }
+      },
+      { rootMargin: '-72px 0px -70% 0px', threshold: 1 },
+    );
+    document.querySelectorAll('article h2[id], article h3[id]').forEach((h) => io.observe(h));
+  })();
+</script>

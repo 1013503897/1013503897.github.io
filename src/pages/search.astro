@@ -1,0 +1,32 @@
+---
+import Base from '../layouts/Base.astro';
+import Search from 'astro-pagefind/components/Search.astro';
+---
+<Base title="搜索" description="全文搜索本站文章">
+  <section class="mx-auto max-w-4xl px-5 pt-14">
+    <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">搜索</h1>
+    <p class="mt-2 text-[var(--color-muted)]">全文检索（标题 · 正文 · 代码）。</p>
+    <div class="mt-8">
+      <Search
+        className="pagefind-ui"
+        searchboxOptions={{ placeholder: '搜索文章、代码、协议名…' }}
+      />
+    </div>
+  </section>
+</Base>
+
+<style is:global>
+  .pagefind-ui {
+    --pagefind-ui-scale: 0.9;
+    --pagefind-ui-primary: var(--color-accent);
+    --pagefind-ui-text: var(--color-fg);
+    --pagefind-ui-background: var(--color-surface);
+    --pagefind-ui-border: var(--color-border);
+    --pagefind-ui-tag: var(--color-bg);
+    --pagefind-ui-border-width: 1px;
+    --pagefind-ui-border-radius: 0.75rem;
+    --pagefind-ui-font: var(--font-sans);
+  }
+  .pagefind-ui__result-link { color: var(--color-fg); }
+  .pagefind-ui__result-link:hover { color: var(--color-accent); }
+</style>

@@ -1,0 +1,43 @@
+---
+import type { Post } from '../lib/utils';
+import { formatDate, isoDate, tagSlug } from '../lib/utils';
+
+interface Props {
+  post: Post;
+}
+const { post } = Astro.props;
+const { title, summary, created, tags, venue } = post.data;
+const url = `/posts/${post.id}`;
+const shown = (tags ?? []).slice(0, 4);
+---
+<article class="group relative rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 transition-all hover:border-[var(--color-accent)] hover:shadow-[0_1px_20px_-8px_var(--color-accent)]">
+  <div class="mb-2 flex items-center gap-3 text-xs text-[var(--color-muted)]">
+    <time datetime={isoDate(created)}>{formatDate(created)}</time>
+    {venue && (
+      <span class="rounded-full border border-[var(--color-border)] px-2 py-0.5 font-mono">{venue}</span>
+    )}
+  </div>
+
+  <h2 class="text-lg font-semibold leading-snug tracking-tight">
+    <a href={url} class="before:absolute before:inset-0 group-hover:text-[var(--color-accent)]">
+      {title}
+    </a>
+  </h2>
+
+  {summary && (
+    <p class="mt-2 line-clamp-3 text-sm leading-relaxed text-[var(--color-muted)]">{summary}</p>
+  )}
+
+  {shown.length > 0 && (
+    <ul class="relative z-10 mt-3 flex flex-wrap gap-1.5">
+      {shown.map((t) => (
+        <li>
+          <a
+            href={`/tags/${tagSlug(t)}`}
+            class="rounded-md bg-[color-mix(in_oklab,var(--color-accent)_9%,transparent)] px-2 py-0.5 font-mono text-xs text-[var(--color-muted)] transition-colors hover:text-[var(--color-accent)]"
+          >#{t}</a>
+        </li>
+      ))}
+    </ul>
+  )}
+</article>

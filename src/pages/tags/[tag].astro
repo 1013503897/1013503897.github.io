@@ -1,0 +1,35 @@
+---
+import Base from '../../layouts/Base.astro';
+import PostCard from '../../components/PostCard.astro';
+import { getPosts, tagCounts } from '../../lib/utils';
+
+export async function getStaticPaths() {
+  const posts = await getPosts();
+  const tags = tagCounts(posts);
+  return tags.map(({ tag }) => ({
+    // raw value — Astro URL-encodes it for the emitted path itself
+    params: { tag },
+    props: {
+      tag,
+      posts: posts.filter((p) => (p.data.tags ?? []).includes(tag)),
+    },
+  }));
+}
+
+const { tag, posts } = Astro.props;
+---
+<Base title={`#${tag}`} description={`标签 ${tag} 下的全部文章`}>
+  <section class="mx-auto max-w-4xl px-5 pt-14">
+    <a href="/tags" class="mb-6 inline-flex items-center gap-1.5 font-mono text-sm text-[var(--color-muted)] transition-colors hover:text-[var(--color-accent)]">
+      <span aria-hidden="true">←</span> 全部标签
+    </a>
+    <h1 class="font-mono text-2xl font-bold tracking-tight sm:text-3xl">
+      <span class="text-[var(--color-accent)]">#</span>{tag}
+    </h1>
+    <p class="mt-2 text-[var(--color-muted)]">{posts.length} 篇文章</p>
+
+    <div class="mt-8 grid gap-4 sm:grid-cols-2">
+      {posts.map((post) => <PostCard post={post} />)}
+    </div>
+  </section>
+</Base>
