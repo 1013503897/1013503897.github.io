@@ -1,9 +1,9 @@
 export const SITE = {
-  title: 'wxy · 逆向手记',
-  shortName: 'wxy',
+  title: '星野安全 · 逆向手记',
+  shortName: '星野安全',
   description:
     '移动安全 / 逆向工程技术分享：加固脱壳、协议与签名算法逆向、RASP 与反作弊对抗、native 纯算复现。',
-  author: 'wxy',
+  author: '星野安全',
   url: 'https://1013503897.github.io',
   lang: 'zh-CN',
   githubUser: '1013503897',

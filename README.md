@@ -1,4 +1,4 @@
-# wxy · 逆向手记
+# 星野安全 · 逆向手记
 
 移动安全 / 逆向工程技术博客，基于 [Astro](https://astro.build) 构建，内容从 Obsidian
 作品集库（`发表文章/`）导入。部署到 GitHub Pages：<https://1013503897.github.io/>
