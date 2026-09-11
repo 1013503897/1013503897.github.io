@@ -13,7 +13,6 @@ tags:
   - 注册
   - apdid
   - 离设备
-venue: 看雪
 target: com.globe.gcash.android（GCash）WCSign
 source: 发表文章/GCASH注册协议分析/gcash注册协议_看雪版.md
 ---

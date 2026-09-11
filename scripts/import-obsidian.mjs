@@ -249,7 +249,7 @@ function run() {
         .flatMap((t) => String(t).split(/[，,]/))
         .map((t) => t.trim())
         .filter(Boolean),
-      ...(fm.venue ? { venue: String(fm.venue) } : {}),
+      // venue (看雪 等投稿出处) intentionally not carried onto the blog
       ...(fm.target ? { target: deanonymize(String(fm.target), slug) } : {}),
       source: path.relative(VAULT, fp),
     };

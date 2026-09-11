@@ -11,7 +11,6 @@ tags:
   - BOSS直聘
   - unidbg
   - 纯算复现
-venue: 看雪
 target: com.hpbr.bosszhipin（BOSS直聘）libyzwg.so
 source: 发表文章/某头部招聘App-native加签栈纯算复现/招聘App_native加签逆向_看雪版.md
 ---

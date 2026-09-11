@@ -13,7 +13,6 @@ tags:
   - 代码虚拟化
   - TEE
   - 脱明文
-venue: 看雪
 target: Google Play Automatic Protection（PairIP）libpairipcore.so
 source: 发表文章/PairIP-Play自动保护-VM虚拟化逆向与界面复现/pairip_vm逆向_看雪版.md
 ---

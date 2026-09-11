@@ -22,7 +22,6 @@ tags:
   - KPM
   - 无痕hook
   - FART
-venue: 看雪
 target: 小牛电动 App（包名 `com.niu.cloud`，versionName 5.13.10）
 source: 发表文章/某电动车App-易盾HTProtect反作弊逆向/某盾HTProtect_逆向实战.md
 ---

@@ -11,7 +11,6 @@ tags:
   - Licensing
   - DroidGuard
   - 设备无关
-venue: 看雪
 target: Google Play License Verification Library（LVL）/ DroidGuard
 source: 发表文章/GooglePlay-LVL授权验证协议逆向/lvl授权验证逆向_看雪版.md
 ---

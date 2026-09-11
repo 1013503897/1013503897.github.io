@@ -12,7 +12,6 @@ tags:
   - AES
   - 签名
   - 纯算复现
-venue: 看雪
 target: com.alpha.lagouapk（拉勾招聘）v8.30.0
 source: 发表文章/某招聘App-加密信道协议逆向/招聘App_加密信道协议逆向_看雪版.md
 ---

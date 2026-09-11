@@ -26,7 +26,6 @@ tags:
   - KPM
   - autocloak
   - tombstone
-venue: 看雪
 target: 步道乐跑（包名 `com.lptiyu.tanke`，versionName 4.2.8 / versionCode 228）
 source: 发表文章/某校园打卡App-SecNeo启动自毁与无痕Frida/SecNeo启动自毁_无痕Frida_autocloak.md
 ---

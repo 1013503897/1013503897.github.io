@@ -11,7 +11,6 @@ tags:
   - 签名算法
   - unidbg
   - 密码学
-venue: 看雪
 target: Adjust ADJSigner libsigner.so（adj5/adj6/adj7）
 source: 发表文章/Adjust签名算法分析/adjust逆向_看雪版.md
 ---

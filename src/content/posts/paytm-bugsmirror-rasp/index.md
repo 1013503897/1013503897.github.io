@@ -13,7 +13,6 @@ tags:
   - KPM
   - code-CRC
   - 反调试
-venue: 看雪
 target: net.one97.paytm（BugsMirror Defender libdefender.so）
 source: 发表文章/Paytm-BugsMirror-RASP攻坚/paytm_rasp逆向_看雪版.md
 ---

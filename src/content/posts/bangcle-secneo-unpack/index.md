@@ -12,7 +12,6 @@ tags:
   - 反自毁
   - 脱壳
   - native
-venue: 看雪
 target: com.bnc.finance（Bank Neo Commerce，梆梆/SecNeo 加固）
 source: 发表文章/BankNeoCommerce-梆梆Bangcle反自毁绕过/梆梆Bangcle加固逆向-从白屏闪退到脱壳_看雪版.md
 ---

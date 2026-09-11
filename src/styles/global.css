@@ -97,6 +97,14 @@
   text-underline-offset: 3px;
   text-decoration-thickness: 1px;
 }
+/* Long unbreakable runs (paths, property keys, prop.lists) must wrap instead
+   of forcing the page to scroll sideways. Block code (<pre>) is excluded — it
+   scrolls inside its own frame. */
+.prose :is(p, li, h1, h2, h3, h4, blockquote, dd, dt),
+.prose :not(pre) > code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 /* inline code (block code is handled by Expressive Code) */
 .prose :not(pre) > code {
   font-family: var(--font-mono);
