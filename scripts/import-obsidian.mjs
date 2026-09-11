@@ -30,6 +30,47 @@ const OUT_DIR = path.join(process.cwd(), 'src/content/posts');
 
 const IMG_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.avif']);
 
+// ── De-anonymisation (personal blog: show real target names) ────────────────
+// Only high-confidence, deterministic changes: decode the base64 package names
+// the notes carry, and resolve each article's own "某X App" self-reference to
+// the app the decoded package unambiguously identifies. Crypto keys / IVs and
+// any business-operational details stay exactly as the source left them.
+const PKG_B64 = {
+  'Y29tLmhwYnIuYm9zc3poaXBpbg==': 'com.hpbr.bosszhipin',
+  'Y29tLmFscGhhLmxhZ291YXBr': 'com.alpha.lagouapk',
+  'Y29tLmpvYi5hbmRyb2lk': 'com.job.android',
+  'Y29tLmxwdGl5dS50YW5rZQ==': 'com.lptiyu.tanke',
+  'Y29tLm5pdS5jbG91ZA==': 'com.niu.cloud',
+  'Y29tLnRhb3UubWFpbWFp': 'com.taou.maimai',
+};
+// per-slug name replacements (apply longest tokens first within a slug)
+const NAME_MAP = {
+  'adjust-signer-vm': [['某归因 SDK', 'Adjust SDK']],
+  'gcash-wcsign-protocol': [['某钱包', 'GCash']],
+  'boss-native-sign': [['某招聘 App', 'BOSS直聘']],
+  'lagou-encrypted-channel': [['某招聘 App', '拉勾']],
+  'ijiami-unpack-51job': [['某招聘 App', '前程无忧 51job']],
+  'secneo-selfcheck': [['某校园打卡 App', '步道乐跑']],
+  'htprotect-anticheat': [['某电动车 App', '小牛电动 App'], ['某盾', '网易易盾']],
+  'maimai-api': [['某职场社交 App', '脉脉'], ['某招聘 App', 'BOSS直聘']],
+};
+function escapeRe(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+function deanonymize(text, slug) {
+  if (typeof text !== 'string' || !text) return text;
+  let out = text;
+  // base64 package tokens → real package, absorbing a leading "base64：" and backticks
+  for (const [token, pkg] of Object.entries(PKG_B64)) {
+    const re = new RegExp('(?:base64\\s*[:：]?\\s*)?`?' + escapeRe(token) + '`?', 'g');
+    out = out.replace(re, '`' + pkg + '`');
+  }
+  for (const [from, to] of NAME_MAP[slug] || []) {
+    out = out.split(from).join(to);
+  }
+  return out;
+}
+
 /** recursively collect .md files */
 function walk(dir, acc = []) {
   for (const name of fs.readdirSync(dir)) {
@@ -194,11 +235,12 @@ function run() {
     fs.mkdirSync(outDir, { recursive: true });
 
     console.log(`→ ${slug}  (${path.relative(VAULT, fp)})`);
-    const { body, assetCount } = processBody(parsed.content, noteDir, assetsDir);
+    const deanonBody = deanonymize(parsed.content, slug);
+    const { body, assetCount } = processBody(deanonBody, noteDir, assetsDir);
 
     const front = {
-      title: fm.title || slug,
-      summary: fm.summary || '',
+      title: deanonymize(fm.title || slug, slug),
+      summary: deanonymize(fm.summary || '', slug),
       created: normDate(fm.created) || normDate(fm.date) || '1970-01-01',
       ...(fm.updated ? { updated: normDate(fm.updated) } : {}),
       // handle both proper YAML arrays and the odd note that used fullwidth
@@ -208,7 +250,7 @@ function run() {
         .map((t) => t.trim())
         .filter(Boolean),
       ...(fm.venue ? { venue: String(fm.venue) } : {}),
-      ...(fm.target ? { target: String(fm.target) } : {}),
+      ...(fm.target ? { target: deanonymize(String(fm.target), slug) } : {}),
       source: path.relative(VAULT, fp),
     };
 

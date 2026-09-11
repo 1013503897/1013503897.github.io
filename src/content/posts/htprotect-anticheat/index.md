@@ -1,5 +1,5 @@
 ---
-title: 某盾 HTProtect 逆向实战：从加固到 30+ 模拟器、云机的检测分析
+title: 网易易盾 HTProtect 逆向实战：从加固到 30+ 模拟器、云机的检测分析
 summary: 网易易盾 HTProtect 反作弊逆向：设备指纹、云机/模拟器/root 检测、时序反 hook、OLLVM 内联字符串；30+ 环境实测检测分析。
 created: '2026-09-09'
 updated: '2026-09-09'
@@ -23,13 +23,13 @@ tags:
   - 无痕hook
   - FART
 venue: 看雪
-target: 某电动车 App（包名 base64 Y29tLm5pdS5jbG91ZA==，versionName 5.13.10）
+target: 小牛电动 App（包名 `com.niu.cloud`，versionName 5.13.10）
 source: 发表文章/某电动车App-易盾HTProtect反作弊逆向/某盾HTProtect_逆向实战.md
 ---
 
 # 前言
 
-目标为某电动车 App（`Y29tLm5pdS5jbG91ZA==`，版本 5.13.10）。集成了易盾的双层防护：应用加固壳（`libnesec.so`）与 HTProtect 反作弊/风控 SDK（`libNetHTProtect.so`）。
+目标为小牛电动 App（`com.niu.cloud`，版本 5.13.10）。集成了易盾的双层防护：应用加固壳（`libnesec.so`）与 HTProtect 反作弊/风控 SDK（`libNetHTProtect.so`）。
 
 HTProtect 是易盾的风控内核，检测判据全部内联加密，静态扫不到。本文先看加固壳的结构与内存加载，用内核无痕 Hook 脱壳并修复 DEX；再分析 `libNetHTProtect.so` 的字符串混淆、系统属性采集、云手机与反调试检测项。
 

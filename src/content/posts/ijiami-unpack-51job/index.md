@@ -1,5 +1,5 @@
 ---
-title: 某招聘 App 爱加密抽取壳完整脱壳与请求签名逆向
+title: 前程无忧 51job 爱加密抽取壳完整脱壳与请求签名逆向
 summary: >-
   爱加密抽取壳完整脱壳：root 读 /proc/pid/mem 绕页权限、DEX 跨区重组、16 DEX/5.5 万类；请求签名 HMAC-SHA256
   纯算复现；FART 补未执行方法。
@@ -19,13 +19,13 @@ tags:
   - 签名
   - HMAC
 venue: 看雪
-target: 某招聘 App（包名 base64 Y29tLmpvYi5hbmRyb2lk）
+target: 前程无忧 51job（包名 `com.job.android`）
 source: 发表文章/某招聘App-爱加密抽取壳完整脱壳与签名逆向/招聘App_爱加密完整脱壳与签名逆向_看雪版.md
 ---
 
 # 前言
 
-目标是逆向某招聘 App（包名 base64：`Y29tLmpvYi5hbmRyb2lk`）的网络请求签名 `sign`。
+目标是逆向前程无忧 51job（包名 `com.job.android`）的网络请求签名 `sign`。
 
 该样本使用了爱加密企业版加固，核心业务方法采用了指令抽取保护，反编译后方法体均为 nop 桩。跟进分析发现，爱加密采用运行期惰性恢复机制：只有被调用到的方法，壳才会将对应的 `code_item` 回填至内存。由于发起网络请求必然触发签名计算，直接通过 `/proc/pid/mem` 转储内存即可获取已解密的签名逻辑。
 

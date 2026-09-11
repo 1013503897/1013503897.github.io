@@ -1,5 +1,5 @@
 ---
-title: 某招聘 App 加密信道逆向——RSA 密钥协商 + AES256CBC 请求加密 + SHA256 签名，纯 Python 复现（密钥协商实测打通）
+title: 拉勾 加密信道逆向——RSA 密钥协商 + AES256CBC 请求加密 + SHA256 签名，纯 Python 复现（密钥协商实测打通）
 summary: 逆整条加密信道：RSA 密钥协商 → AES256CBC 请求加密 → SHA256 签名信封；纯 Python 复现，密钥协商实测打通。
 created: '2026-09-03'
 tags:
@@ -19,7 +19,7 @@ source: 发表文章/某招聘App-加密信道协议逆向/招聘App_加密信�
 
 这个招聘 App 百度加固，先内存脱壳（另一篇讲过，root 读 `/proc/pid/mem` 绕页权限，出 19973 类、方法体完整）。脱出来看它的网络层 `com.lagou.socketchannel.http`——不是普通加 header，是一整套加密信道：先跟服务器协商一个会话 AES key，之后每个请求体 AES 加密、带签名。本文把这套协议逆出来，纯 Python 复现，最后拿真实服务器验证密钥协商。
 
-样本 v8.30.0（`Y29tLmFscGhhLmxhZ291YXBr`），网关 `gate.lagou.com`。
+样本 v8.30.0（`com.alpha.lagouapk`），网关 `gate.lagou.com`。
 
 # 密钥协商：客户端造 key，RSA 加密给服务器
 

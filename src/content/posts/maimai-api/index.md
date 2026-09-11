@@ -1,5 +1,5 @@
 ---
-title: 某职场社交 App 接口逆向——没有 per-request 签名的鉴权模型与离设备复现
+title: 脉脉 接口逆向——没有 per-request 签名的鉴权模型与离设备复现
 summary: 与加签栈相反的一端：零 per-request 签名，鉴权只靠 access_token + u + 明文设备参数；离设备复现几乎零门槛。
 created: '2026-09-02'
 tags:
@@ -16,9 +16,9 @@ target: com.taou.maimai（脉脉）v6.6.84
 source: 发表文章/某职场社交App-无签名鉴权与离设备复现/职场社交App_接口逆向_看雪版.md
 ---
 
-前一篇逆的是某招聘 App，搜索接口每个请求都由 native `libyzwg.so` 出 `sp`/`sig`，离设备复现要先把加签算法啃出来。这一篇换一个职场社交 App，本想按同样的套路找它的加签栈，结果找了个遍——没有。请求的鉴权全压在 `access_token` 上，其余是一串明文设备参数。反倒省了最难的那一步。
+前一篇逆的是BOSS直聘，搜索接口每个请求都由 native `libyzwg.so` 出 `sp`/`sig`，离设备复现要先把加签算法啃出来。这一篇换一个职场社交 App，本想按同样的套路找它的加签栈，结果找了个遍——没有。请求的鉴权全压在 `access_token` 上，其余是一串明文设备参数。反倒省了最难的那一步。
 
-样本 v6.6.84（`Y29tLnRhb3UubWFpbWFp`），arm64-v8a。抓包看请求：URL query 里一长串参数（`version`/`channel`/`device`/`u`/`access_token`/`density`…），没有密文签名字段，POST 请求体是普通表单或 JSON，响应是明文 JSON。要搞清的就一件事：一条请求凭什么被服务器接受，这个「凭什么」能不能在 PC 上离设备造出来。
+样本 v6.6.84（`com.taou.maimai`），arm64-v8a。抓包看请求：URL query 里一长串参数（`version`/`channel`/`device`/`u`/`access_token`/`density`…），没有密文签名字段，POST 请求体是普通表单或 JSON，响应是明文 JSON。要搞清的就一件事：一条请求凭什么被服务器接受，这个「凭什么」能不能在 PC 上离设备造出来。
 
 包体里能看到 `libnativelib_maimai.so`、`libghostlib_maimai.so`、`libdexvmp.so`（DEX VMP 壳）、一整套 React Native / Hermes、cronet。Java 层几乎每个类都挂着美团 Robust 热修的 `ChangeQuickRedirect`/`PatchProxy`，jadx 反编译出来带一层样板，但不影响读逻辑。
 

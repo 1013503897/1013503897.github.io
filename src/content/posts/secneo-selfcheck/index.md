@@ -27,15 +27,13 @@ tags:
   - autocloak
   - tombstone
 venue: 看雪
-target: >-
-  某校园打卡 App（包名 base64 Y29tLmxwdGl5dS50YW5rZQ==，versionName 4.2.8 / versionCode
-  228）
+target: 步道乐跑（包名 `com.lptiyu.tanke`，versionName 4.2.8 / versionCode 228）
 source: 发表文章/某校园打卡App-SecNeo启动自毁与无痕Frida/SecNeo启动自毁_无痕Frida_autocloak.md
 ---
 
 # 前言
 
-目标是一款校园打卡 App（`Y29tLmxwdGl5dS50YW5rZQ==`，版本 4.2.8），用 **SecNeo（梆梆安全）** 加固。它在一台装了注入框架的机器上一打开就自毁，连开屏都过不去。
+目标是一款校园打卡 App（`com.lptiyu.tanke`，版本 4.2.8），用 **SecNeo（梆梆安全）** 加固。它在一台装了注入框架的机器上一打开就自毁，连开屏都过不去。
 
 SecNeo 和易盾 `libnesec` 不同：它把 `libDexHelper.so` 做成一个**几乎全是 `UDF #0` 占位槽的骨架**——函数符号名保留、函数体加密，运行时才由加载器桩解密并材料化到占位槽里。所以静态能看到的是**壳结构、加载器桩的裸-syscall 自检、自建 ELF 符号解析器，以及从符号表 + 导入还原出的检测能力面**；具体判据在加密体里，静态不可得。本文把这条边界说清楚，并逐段还原能还原的部分。
 

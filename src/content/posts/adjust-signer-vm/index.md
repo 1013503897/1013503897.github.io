@@ -1,5 +1,5 @@
 ---
-title: 某归因 SDK 签名算法分析——把字节码 VM 逆成标准密码原语
+title: Adjust SDK 签名算法分析——把字节码 VM 逆成标准密码原语
 summary: 把塞进字节码 VM 的 Adjust 签名逆成标准密码原语：AES-14 轮、内层哈希链、CFF 状态机；逐字节对拍，比 unidbg 快 5 万倍。
 created: '2026-07-26'
 tags:

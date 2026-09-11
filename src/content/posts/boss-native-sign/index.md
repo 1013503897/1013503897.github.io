@@ -1,5 +1,5 @@
 ---
-title: 某招聘 App 搜索接口逆向——libyzwg 加签栈纯算复现
+title: BOSS直聘 搜索接口逆向——libyzwg 加签栈纯算复现
 summary: native 加签栈纯算复现：sig=V3.0+md5、sp=RC4+LZ4、RC4 TWIST 抵消；IDA + unidbg 差分预言机，离设备真发包。
 created: '2026-08-18'
 tags:
@@ -16,11 +16,11 @@ target: com.hpbr.bosszhipin（BOSS直聘）libyzwg.so
 source: 发表文章/某头部招聘App-native加签栈纯算复现/招聘App_native加签逆向_看雪版.md
 ---
 
-最近在看某招聘 App 的职位搜索接口，把 native 层简单逆了下，实现纯算复现协议签名。
+最近在看BOSS直聘 的职位搜索接口，把 native 层简单逆了下，实现纯算复现协议签名。
 
 抓包：搜索请求的 query 里挂着一个 `sp`（几百字符的密文串）和一个 `sig`（`V3.0` 开头的 32 位 hex），请求体是一坨二进制，响应体也是密文。这三样都出自一个 native 库 `libyzwg.so`（JNI 包装类 `com.twl.signer.YZWG`，Java 侧薄封装 `com.twl.signer.a`）。
 
-样本是 v14.050（`Y29tLmhwYnIuYm9zc3poaXBpbg==`）。要的是纯 Python 复现，跑的时候不带真机也不带 unidbg，最后真发一次请求，看服务器认不认：`sig`/`sp` 怎么算，请求体和响应体怎么编解码，搜索为什么走「批量壳」端点。
+样本是 v14.050（`com.hpbr.bosszhipin`）。要的是纯 Python 复现，跑的时候不带真机也不带 unidbg，最后真发一次请求，看服务器认不认：`sig`/`sp` 怎么算，请求体和响应体怎么编解码，搜索为什么走「批量壳」端点。
 
 环境：
 

@@ -1,5 +1,5 @@
 ---
-title: 某钱包注册协议逆向——DynamicSecurity「WCSign」发码验码纯 Python 复现
+title: GCash注册协议逆向——DynamicSecurity「WCSign」发码验码纯 Python 复现
 summary: >-
   DynamicSecurity「WCSign」发码验码纯 Python 复现：握手 v1/v3、字段级 AES、RSA 签名、apdid
   离设备铸、X-Env-Info，识破三个红鲱鱼。
