@@ -124,6 +124,34 @@ function findByName(root, name) {
   return index.get(name) || null;
 }
 
+// Demote ATX headings so the shallowest body heading becomes level 2 (the page
+// shell renders the single <h1>). Skips fenced code blocks.
+function shiftHeadings(md) {
+  const lines = md.split('\n');
+  const fence = /^\s*(```|~~~)/;
+  let inFence = false;
+  let min = 9;
+  for (const l of lines) {
+    if (fence.test(l)) { inFence = !inFence; continue; }
+    if (inFence) continue;
+    const m = l.match(/^(#{1,6})\s/);
+    if (m) min = Math.min(min, m[1].length);
+  }
+  if (min === 9 || min >= 2) return md; // no headings, or already ≥ h2
+  const shift = 2 - min;
+  inFence = false;
+  return lines
+    .map((l) => {
+      if (fence.test(l)) { inFence = !inFence; return l; }
+      if (inFence) return l;
+      const m = l.match(/^(#{1,6})(\s.*)$/);
+      if (!m) return l;
+      const lvl = Math.min(6, m[1].length + shift);
+      return '#'.repeat(lvl) + m[2];
+    })
+    .join('\n');
+}
+
 function slugifyAsset(rel) {
   return rel
     .replace(/^\.\.\//g, '')
@@ -161,6 +189,11 @@ function processBody(body, noteDir, assetsDir) {
   // 0) Drop a single leading H1 — the layout already renders the title as <h1>,
   // so the article's own "# ..." would duplicate it.
   out = out.replace(/^﻿?\s*#[ \t]+.*(?:\r?\n)+/, '');
+
+  // 0.5) Normalise heading levels: the page shell owns the <h1>, so demote body
+  // headings until the top one is <h2>. Some notes write sections as "# ..."
+  // (48px on the page); this keeps one H1 per page and sane heading sizes.
+  out = shiftHeadings(out);
 
   // 1) Obsidian embeds ![[path]] (images only; drop note transclusions)
   out = out.replace(/!\[\[([^\]]+)\]\]/g, (m, inner) => {

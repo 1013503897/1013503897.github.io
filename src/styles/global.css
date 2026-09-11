@@ -56,8 +56,10 @@
   a {
     color: inherit;
   }
-  /* wrap-style autolinked headings: keep them looking like plain headings */
-  .heading-anchor {
+  /* wrap-style autolinked headings: keep them looking like plain headings
+     (needs to out-specify `.prose a`, which would otherwise tint them accent) */
+  .heading-anchor,
+  .prose a.heading-anchor {
     text-decoration: none;
     color: inherit;
   }
@@ -96,6 +98,26 @@
 .prose a {
   text-underline-offset: 3px;
   text-decoration-thickness: 1px;
+}
+/* Heading autolinks stay the heading colour, not accent. Must live UNLAYERED
+   (like `.prose a`) — a layered @layer base rule would always lose to it. */
+.prose a.heading-anchor {
+  color: inherit;
+  text-decoration: none;
+}
+/* Tame prose heading sizes — prose-lg's defaults run large for CJK section
+   titles. Sizes are relative to the 18px prose-lg body. */
+.prose :is(h1, h2) {
+  font-size: 1.4em;
+  margin-top: 2em;
+  line-height: 1.35;
+}
+.prose h3 {
+  font-size: 1.15em;
+  margin-top: 1.6em;
+}
+.prose h4 {
+  font-size: 1em;
 }
 /* Long unbreakable runs (paths, property keys, prop.lists) must wrap instead
    of forcing the page to scroll sideways. Block code (<pre>) is excluded — it

@@ -30,7 +30,7 @@ target: 步道乐跑（包名 `com.lptiyu.tanke`，versionName 4.2.8 / versionCo
 source: 发表文章/某校园打卡App-SecNeo启动自毁与无痕Frida/SecNeo启动自毁_无痕Frida_autocloak.md
 ---
 
-# 前言
+## 前言
 
 目标是一款校园打卡 App（`com.lptiyu.tanke`，版本 4.2.8），用 **SecNeo（梆梆安全）** 加固。它在一台装了注入框架的机器上一打开就自毁，连开屏都过不去。
 
@@ -38,7 +38,7 @@ SecNeo 和易盾 `libnesec` 不同：它把 `libDexHelper.so` 做成一个**几�
 
 末尾给出工程结论：怎么让 Frida 在 SecNeo 上无痕存活，并把隐身手段逐条对上前面分析出的检测面。
 
-# 现象：启动线程外的自毁
+## 现象：启动线程外的自毁
 
 抓 tombstone，签名一眼就是**故意自毁**而非普通崩溃：
 
@@ -61,7 +61,7 @@ tombstone 的 `memory near x15`（指向 `base.apk` 的一块映射）解码后�
 
 *（图待补：tombstone_secneo）*
 
-# 壳结构：UDF #0 占位骨架 + 加密体
+## 壳结构：UDF #0 占位骨架 + 加密体
 
 解包 APK，`lib/arm64-v8a/` 下 SecNeo 三件套：`libDexHelper.so`（加载器 / 反篡改核心，1,066,333 字节）、`libdexjni.so`（壳运行时，7,914,765 字节）、`libDexHelper-x86.so`。只有 1 个 `classes.dex`（外壳，真 dex 加密）。启动日志印证壳流程，自毁发生在业务代码之前的检测子线程里：
 
@@ -82,7 +82,7 @@ void __noreturn ...::GnuLookup(basic_string_view, unsigned) { __udf(0); }   // E
 
 `UDF #0`（`0x0000`）是未定义指令占位。SecNeo 的做法是：**保留符号名与占位槽，把真实机器码加密**；加载器桩在运行时解压（内置 `unxz` / `xz_crc64`）并借自建 ELF 解析器就位后，把真实代码材料化到这些占位槽。所以**静态唯一的真实代码，是 rx 段那一小块加载器桩**——它负责解壳前的自检与解密引导。下面分三块还原：加载器桩自检、自建符号解析器、检测面。
 
-# 加载器桩：解壳前的裸-syscall 自检
+## 加载器桩：解壳前的裸-syscall 自检
 
 加载器桩在解密 payload **之前**先跑一轮 maps / cmdline 自检，入口是 `sub_12876C`：
 
@@ -133,7 +133,7 @@ while (1) {
 
 *（图待补：ida_loader_selfcheck）*
 
-# 自建 ELF 符号解析器：反 PLT / dlsym hook
+## 自建 ELF 符号解析器：反 PLT / dlsym hook
 
 SecNeo 解析 libc / libart 符号不走 `dlsym`，而是自带一套 ELF 解析器（混淆类名 `p5lS5...`），从符号表能还原出它的方法集：
 
@@ -156,7 +156,7 @@ mprotect   readlink   getpid   gettid   sigaction   ptrace   pthread_*
 
 （`dlopen`/`dlsym` 仍解析，是给它自己按需用；核心符号走上面的哈希解析。）
 
-# 检测面还原（符号表 + 导入）
+## 检测面还原（符号表 + 导入）
 
 检测函数体是 `UDF #0` 占位（加密），静态**取不到具体判据**；但**符号名 + 导入表**完整勾出了检测能力面。这里如实列出静态可确认的部分：
 
@@ -174,15 +174,15 @@ mprotect   readlink   getpid   gettid   sigaction   ptrace   pthread_*
 
 `ArtMethod::isHooked` 那组符号值得单独说：SecNeo 保留了对 `ArtMethod` 内部布局的探测（`entry_point_offset`、`data_offset`、`art_method_size`），说明它会**从 `jobject`/`jmethodID` 反射到 `ArtMethod`、读其 entry_point 与预期比对**——这是检出 Java 层 hook（改 entry_point 的 LSPlant/Xposed、以及 frida 的 Java 桥）的经典手法，静态只能看到它有这个能力，具体查哪些方法在加密体里。
 
-# 脱壳链与 DEX 注入
+## 脱壳链与 DEX 注入
 
 从符号表还能拼出解壳链：加载器桩用**自建 ELF 解析器**就位符号 → **`unxz` / `xz_crc64`** 解压加密载荷 → **`DexFileLoader::LoadV26 / LoadV28 / LoadV34_BETA1 / LoadV34_D`**（按 ART 版本注入 DEX）→ **`safejni::invoke / invokeStatic`**（把检测结果与解壳产物回填 Java 层）。`DexFileLoader` 的多版本 `Load*` 正对应不同 Android 的 `DexFile` 内部结构差异。
 
-# 自毁机制
+## 自毁机制
 
 前面 tombstone 已给出自毁的可观测形态：命中检测后，SecNeo **把执行流导向非法小地址 `pc=0x88c`（触发 Instruction Abort）、清空 `lr`/`sp`**，让崩溃发生在一个检测子线程上、栈回溯全 `<unknown>`——刻意隐藏真实检测点，避免逆向者从崩溃栈回溯到判据。配合导入的 `sigaction`（装信号 handler）、`abort` / `_exit` / `android_set_abort_message`，构成"命中即自毁、且不留线索"的闭环。这也是把它归为**主动自毁**而非普通空指针崩溃的依据。
 
-# 应用：让 Frida 在 SecNeo 上无痕存活
+## 应用：让 Frida 在 SecNeo 上无痕存活
 
 静态分析出的检测面，正好逐条对应到隐身要点。把这台机器上的无痕基础设施对上去：
 
@@ -211,11 +211,11 @@ mprotect   readlink   getpid   gettid   sigaction   ptrace   pthread_*
 
 *（图待补：verify_autocloak）*
 
-# 小结：清证据，而不是击败检测
+## 小结：清证据，而不是击败检测
 
 这套方案的本质：**Frida 脚本本身是素的**——没有针对 SecNeo 的反检测代码，只是把 `Interceptor.attach` 换成 `Traceless.attach`、多调一句 `autocloak()`。SecNeo 的检测（commonExpCheck 那套：isHooked、时序、YARA、ptrace、maps）**照跑不误**，只是每次都扫了个空：denylist 让 maps 没有注入框架痕迹、无痕 hook 让 `.text` 不被改、autocloak 让 maps 没有 frida memfd。**赢在下层的隐身基础设施，不在上层的脚本机灵**——对不断加判据的加固壳，这比脚本级逐项对抗更耐久。
 
-# 总结
+## 总结
 
 1. **壳结构**：`libDexHelper.so` 是 **UDF #0 占位骨架 + 加密体**——符号名保留、函数体几乎全是 `__udf(0)`，运行时由加载器桩解密材料化。静态唯一真实代码是 rx 段的加载器桩。
 2. **加载器桩自检**：解壳前先用**裸 openat/read**读 `/proc/self/maps` 与 `/proc/self/cmdline`，对**打包时烧入的 pattern**（占位 `__bangcle__check` / `__pkgname__`）做手写 strstr 子串匹配，绕过一切用户态 open/read hook。
@@ -224,7 +224,7 @@ mprotect   readlink   getpid   gettid   sigaction   ptrace   pthread_*
 5. **自毁**：命中即把执行流导向非法地址 `pc=0x88c`、清 `lr`/`sp`、崩在检测子线程，栈全 `<unknown>` 隐藏判据。
 6. **无痕存活**：denylist（加载器层排除）过启动检测；traceless KPM hook（`.text` 不改）过完整性与 `isHooked`；`selfCloak` / 内核 `autocloak`（show_map 行匹配丢行）过 maps-scan 与 YARA memfd。清证据而非击败检测。
 
-# 工具
+## 工具
 
 | 工具 | 用途 |
 | --- | --- |

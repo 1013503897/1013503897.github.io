@@ -28,7 +28,7 @@ const hasMermaid = post.body?.includes('```mermaid') ?? false;
         {minutesRead && <span>· {minutesRead}</span>}
         {venue && <span class="rounded-full border border-[var(--color-border)] px-2 py-0.5 font-mono">{venue}</span>}
       </div>
-      <h1 class="text-2xl font-bold leading-tight tracking-tight sm:text-3xl">{title}</h1>
+      <h1 class="text-xl font-bold leading-snug tracking-tight sm:text-2xl">{title}</h1>
       {summary && <p class="mt-3 text-[var(--color-muted)] leading-relaxed">{summary}</p>}
       {target && (
         <p class="mt-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 font-mono text-xs text-[var(--color-muted)]">

@@ -20,7 +20,7 @@ source: 发表文章/某招聘App-加密信道协议逆向/招聘App_加密信�
 
 样本 v8.30.0（`com.alpha.lagouapk`），网关 `gate.lagou.com`。
 
-# 密钥协商：客户端造 key，RSA 加密给服务器
+## 密钥协商：客户端造 key，RSA 加密给服务器
 
 入口 `SecretHttpController`。协商流程在 `b(boolean, callback)`：
 
@@ -54,7 +54,7 @@ public static String encode(String key, String s) {
 
 固定 IV `c558Gq0YQK2QUlMc`，PKCS5，base64。到这里协商的全部参数都齐了。
 
-# 请求信封：body 加密 + 签名 + 一堆 header
+## 请求信封：body 加密 + 签名 + 一堆 header
 
 脱壳出来的 `HttpSecretHelper.p(httpRequest)` 是加密请求的构建器，一行行看它挂了什么：
 
@@ -120,7 +120,7 @@ X-S-HEADER = AES.encode(K_s, {"code": SHA256(json+path+body).UPPER, "originHeade
 X-A-REQ-HEADER = {deviceType, appVersion, reqVersion, appType}
 ```
 
-# 纯 Python 复现 + 实测
+## 纯 Python 复现 + 实测
 
 RSA 公钥从 `assets/lagou.crt` 抽出（2048 位）。AES/RSA/SHA256 都是标准原语，Python 直接写。密钥协商是免登录的，可以直接打真服务器验证：
 
@@ -131,7 +131,7 @@ $ python -c "from lagoucli.client import LagouClient; c=LagouClient(); print(c.k
 
 服务器接受了纯 Python 造的 `RSA(K_c)`、回了会话 key，加密信道离设备建起来了。再用完整信封打一个业务端点（`v1/neirong/janus/app/strategies`），服务器把加密 body 解开、走到应用层，返回 `state:1003 "非法的访问"`——这不是加密/签名错（那样网关早在解密阶段就拒了），是应用层要登录态 `userToken`。也就是说加密协议这层全对了，业务数据再补一个 `userToken`（走它的短信登录，跟另一个 App 一样）即可。
 
-# 复盘
+## 复盘
 
 - **加密信道 = 密钥协商 + 对称加密 + 签名，三层拆开各个击破**。协商层看「客户端 key 怎么造、怎么给服务器、会话 key 怎么回来」；对称层看 AES 的 mode/IV/padding/编码（这里 IV 是死的，最省事）；签名层看「拼什么、什么摘要、大小写」。逐层对着脱壳代码抄，不猜。
 - **公钥在 assets 里**。`RSAEncoder` 从 `assets/lagou.crt` 读证书取公钥——客户端只需公钥，抽出来就行，不用逆 native。

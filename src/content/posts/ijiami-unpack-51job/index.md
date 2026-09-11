@@ -22,7 +22,7 @@ target: 前程无忧 51job（包名 `com.job.android`）
 source: 发表文章/某招聘App-爱加密抽取壳完整脱壳与签名逆向/招聘App_爱加密完整脱壳与签名逆向_看雪版.md
 ---
 
-# 前言
+## 前言
 
 目标是逆向前程无忧 51job（包名 `com.job.android`）的网络请求签名 `sign`。
 
@@ -30,7 +30,7 @@ source: 发表文章/某招聘App-爱加密抽取壳完整脱壳与签名逆向/
 
 本文记录加固特征分析、`/proc/pid/mem` 内存脱壳、签名算法还原与 Python 离线复现的过程；后半部分针对未执行代码，记录基于 ArtMethod 级主动调用的全量脱壳方案，以及排查和解决爱加密动态 patch `libart.so` 引发崩溃的对抗细节。
 
-# 加固特征分析
+## 加固特征分析
 
 入口 Application 为 `s.h.e.l.l.S`，具备典型的爱加密加固特征。解压 APK 后检查 assets 与 lib 目录，关键文件分布如下：
 
@@ -54,7 +54,7 @@ lib/<abi>/libzxprotect.so        爱加密 RASP（反 frida / 反调试）
 
 由于网络请求触发前必然执行签名计算，签名相关的类与方法在内存中已被解密还原。因此无需提前全量脱壳，直接转储运行时内存即可获取有效字节码。
 
-# 基于 /proc/pid/mem 的内存转储
+## 基于 /proc/pid/mem 的内存转储
 
 常规动态注入手段在此场景下受限，Frida 在 attach 或 spawn 阶段均会被 `libzxprotect.so` 拦截终止：
 
@@ -93,7 +93,7 @@ su -c "dd if=/proc/$pid/mem bs=4096 skip=<dex_page> count=<npages> 2>/dev/null" 
 修复后共提取出 16 个有效 DEX 文件，包含 55,054 个类。
 在 `full_6f9d1b1000.dex` 中定位到了签名核心类 `EncryptAndSignUtil` 与 `SignFor51`。检查其 CodeItem：`doEncryptOrSign` 包含 439 条指令，`getRequestBodyAfter` 包含 202 条指令，`getSignJsonDataFromMap` 包含 52 条指令，`hmacSha256` 包含 42 条指令，指令流完整，未被抽空为 nop。签名相关逻辑已成功恢复。
 
-# 签名定位：SignFor51 与 EncryptAndSignUtil
+## 签名定位：SignFor51 与 EncryptAndSignUtil
 
 检索常用密码学 API（`MessageDigest`、`Mac`、`Cipher`）的交叉引用，定位至核心签名类 `com.jobs.network.digest.SignFor51`。
 该类方法实现均为标准加密原语：`hmacSha256` 对应标准 HMAC-SHA256，`getSHA256` 对应 SHA-256，`toHexString` 使用 `Formatter("%02x")` 生成小写十六进制字符串。反编译代码完整可读：
@@ -126,7 +126,7 @@ return request.newBuilder()
 
 ![image5](./assets/images-05.png)
 
-# 密钥分发与站点映射
+## 密钥分发与站点映射
 
 密钥按 host 维度进行配置。枚举类 `EncryptAndSignUtil$SignKey` 在 `<clinit>` 中定义了明文密钥常量：
 
@@ -158,7 +158,7 @@ switch (host) {
 
 例如首页职位列表请求发往 `cupid.51job.com`，匹配的密钥即为 `SIGN_KEY_51JOB`。
 
-# 未执行方法恢复：ArtMethod 级主动调用与 libart patch 对抗
+## 未执行方法恢复：ArtMethod 级主动调用与 libart patch 对抗
 
 静态内存转储仅能获取已在运行期触发的方法。针对未被执行、仍为 nop 占位的冷门业务逻辑，需借助进程内 ArtMethod 级主动调用机制实现全量解密。
 其原理是在运行时遍历已加载 `DexFile` 的 `ClassDef`，解析所有 direct 与 virtual 方法对应的 `ArtMethod` 指针，主动调用 `ArtMethod::GetCodeItem()`。由于爱加密在首次解析方法 code_item 时完成回填，主动遍历调用可促使壳执行解密流程，随后顺着 `CodeItem*` 指针将解密后的字节码转储落盘。
@@ -202,7 +202,7 @@ resetprop persist.kpmhook.unpack.extout 1              # 输出至应用外部�
 
 该方案为后续分析未经执行触发的冷分支逻辑提供了完整的代码还原能力。
 
-# 签名还原与 Python 实现
+## 签名还原与 Python 实现
 
 签名算法基于标准 HMAC-SHA256，Python 实现核心逻辑如下：
 
@@ -215,7 +215,7 @@ def sign_cupid(after_host, params, host="cupid.51job.com"):
 
 其中 `after_host` 必须保留公共 query 参数；`gson_json` 还原 Java 端 `getSignJsonDataFromMap` 的序列化规则。计算得到的哈希值写入 HTTP `sign` 请求头；网关头 `Client-Time`（GMT+8 整点秒级时间戳）不计入 HMAC。完整实现（包含 `sign_cupid`、`sign_legacy`、签名 Client 及测试用例）已开源至 **[job51-cli](https://github.com/1013503897/job51-cli)**。
 
-# 接口验证
+## 接口验证
 
 根据 `com.job.android.network.MyNetWorkConfig.getCommonQueryParams` 组装公共 query 参数（`api_key=51job`、`clientid=000007`、`version=16.15.0`，以及网关校验的秒级时间戳 `timestamp`），使用 cupid 默认的 `SIGN_KEY_51JOB` 计算签名，构造 HTTP 请求进行服务端校验：
 
@@ -231,14 +231,14 @@ def sign_cupid(after_host, params, host="cupid.51job.com"):
 
 ![image10](./assets/images-10.png)
 
-# 技术复盘
+## 技术复盘
 
 1. **惰性抽取机制下的取舍**：该样本采用按需回填策略，仅执行过的代码会被解密回写。对于网络请求、加解密等高频核心逻辑，在应用触发对应操作后，直接利用 root 权限读取 `/proc/pid/mem` 即可转储完整 CodeItem，避开了注入层面的反调试检测。
 2. **内存转储的边界处理**：大型 DEX 在虚拟地址空间中可能跨越多个相邻匿名映射段，需严格按文件头 `file_size` 跨区拼合；针对 64 位进程高位虚拟地址，需规避移动端 32 位 shell 的整型溢出问题。
 3. **ART 深度脱壳的时机对抗**：爱加密在启动初期会对 `libart.so` 注入私有 hook 并修改内存属性。脱壳线程若在壳初始化完成前强行 attach 并解析符号，易引发并发内存访问崩溃。引入启动延时（如等待 12 秒）避开初始化窗口，是一种实用的排障手段。
 4. **签名还原细节**：签名核心算法为 HMAC-SHA256，其校验严格依赖序列化格式（`LinkedHashMap` 键值插入顺序、value 强制转换为字符串）。签名覆盖范围为 host 后的完整 URI（包含公共 query 参数）；`Client-Time` 头不参与计算。
 
-# 使用工具
+## 使用工具
 
 | 工具 | 用途 |
 | --- | --- |
@@ -251,11 +251,11 @@ def sign_cupid(after_host, params, host="cupid.51job.com"):
 
 ---
 
-# 附录：其他壳的 /proc/pid/mem 对照
+## 附录：其他壳的 /proc/pid/mem 对照
 
 同一套 root 读 `/proc/pid/mem` + 按 `file_size` 跨区重组的手法，换到不同加固上的差异——辨别壳型只需 dump 完看几个方法的 smali。
 
-## 整体加密壳（梆梆 SecNeo）
+### 整体加密壳（梆梆 SecNeo）
 
 另一招聘 App 的 Application 为 `com.stub.StubApp`，梆梆 SecNeo 加固。其解密后的 DEX 不落在 `[anon:dalvik-DEX data]` 命名区，而是梆梆自行 `mmap` 的**无名匿名区**——因此扫描目标不是按名 grep，而是遍历所有 `path==''` 的可读匿名区检索 `dex\n035`。扫出 7 个 DEX，同样按 vaddr + file_size 整段读、裁尾、重算校验，jadx 加载出 16140 类。
 
@@ -263,7 +263,7 @@ def sign_cupid(after_host, params, host="cupid.51job.com"):
 
 （该 app Java 层几乎全是 `flutter_*` 插件桥，业务在 Dart 编译的 `libapp.so`（AOT 快照）里，是另一条 Flutter/Dart 逆向的活，不在本文范围。）
 
-## 自 ptrace 反调试（百度加固）
+### 自 ptrace 反调试（百度加固）
 
 第三个招聘 App，百度加固（`libbaiduprotect.so`，真实 DEX 为 `assets/baiduprotect{1-5}.i.dex`），看点是反调试：
 
