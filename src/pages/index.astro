@@ -8,7 +8,7 @@ const posts = await getPosts();
 const topTags = tagCounts(posts).slice(0, 10);
 ---
 <Base>
-  <section class="mx-auto max-w-4xl px-5 pt-14 pb-10">
+  <section class="mx-auto max-w-6xl px-5 pt-14 pb-10">
     <p class="mb-3 font-mono text-sm text-[var(--color-accent)]">$ whoami</p>
     <h1 class="text-2xl font-bold leading-tight tracking-tight sm:text-3xl">
       移动安全 · 逆向工程手记
@@ -24,8 +24,8 @@ const topTags = tagCounts(posts).slice(0, 10);
     </div>
   </section>
 
-  <section class="mx-auto max-w-4xl px-5">
-    <div class="grid gap-4 sm:grid-cols-2">
+  <section class="mx-auto max-w-6xl px-5">
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {posts.map((post) => <PostCard post={post} />)}
     </div>
   </section>

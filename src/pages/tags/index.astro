@@ -7,7 +7,7 @@ const tags = tagCounts(posts);
 const max = Math.max(...tags.map((t) => t.count), 1);
 ---
 <Base title="标签" description="按主题浏览全部文章标签">
-  <section class="mx-auto max-w-4xl px-5 pt-14">
+  <section class="mx-auto max-w-6xl px-5 pt-14">
     <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">标签</h1>
     <p class="mt-2 text-[var(--color-muted)]">共 {tags.length} 个标签，{posts.length} 篇文章。</p>
 

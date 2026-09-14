@@ -19,7 +19,7 @@ export async function getStaticPaths() {
 const { tag, posts } = Astro.props;
 ---
 <Base title={`#${tag}`} description={`标签 ${tag} 下的全部文章`}>
-  <section class="mx-auto max-w-4xl px-5 pt-14">
+  <section class="mx-auto max-w-6xl px-5 pt-14">
     <a href="/tags" class="mb-6 inline-flex items-center gap-1.5 font-mono text-sm text-[var(--color-muted)] transition-colors hover:text-[var(--color-accent)]">
       <span aria-hidden="true">←</span> 全部标签
     </a>
@@ -28,7 +28,7 @@ const { tag, posts } = Astro.props;
     </h1>
     <p class="mt-2 text-[var(--color-muted)]">{posts.length} 篇文章</p>
 
-    <div class="mt-8 grid gap-4 sm:grid-cols-2">
+    <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {posts.map((post) => <PostCard post={post} />)}
     </div>
   </section>

@@ -4,7 +4,7 @@ const year = new Date().getFullYear();
 const range = year > SITE.since ? `${SITE.since}–${year}` : `${SITE.since}`;
 ---
 <footer class="mt-24 border-t border-[var(--color-border)]">
-  <div class="mx-auto flex max-w-4xl flex-col gap-2 px-5 py-8 text-sm text-[var(--color-muted)] sm:flex-row sm:items-center sm:justify-between">
+  <div class="mx-auto flex max-w-6xl flex-col gap-2 px-5 py-8 text-sm text-[var(--color-muted)] sm:flex-row sm:items-center sm:justify-between">
     <p>© {range} {SITE.author} · 内容以技术交流为目的</p>
     <p class="flex items-center gap-4">
       <a href="/rss.xml" class="hover:text-[var(--color-fg)]">RSS</a>
