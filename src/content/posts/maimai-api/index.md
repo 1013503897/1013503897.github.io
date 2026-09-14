@@ -15,7 +15,7 @@ target: com.taou.maimai（脉脉）v6.6.84
 source: 发表文章/某职场社交App-无签名鉴权与离设备复现/职场社交App_接口逆向_看雪版.md
 ---
 
-前一篇逆的是BOSS直聘，搜索接口每个请求都由 native `libyzwg.so` 出 `sp`/`sig`，离设备复现要先把加签算法啃出来。这一篇换一个职场社交 App，本想按同样的套路找它的加签栈，结果找了个遍——没有。请求的鉴权全压在 `access_token` 上，其余是一串明文设备参数。反倒省了最难的那一步。
+前一篇逆的是BOSS直聘，搜索接口每个请求都由 native `libyzwg.so` 出 `sp`/`sig`，离设备复现要先把加签算法啃出来。这一篇换一个职场社交 App，本想按同样的套路找它的加签栈，结果找了个遍，没有。请求的鉴权全压在 `access_token` 上，其余是一串明文设备参数。反倒省了最难的那一步。
 
 样本 v6.6.84（`com.taou.maimai`），arm64-v8a。抓包看请求：URL query 里一长串参数（`version`/`channel`/`device`/`u`/`access_token`/`density`…），没有密文签名字段，POST 请求体是普通表单或 JSON，响应是明文 JSON。要搞清的就一件事：一条请求凭什么被服务器接受，这个「凭什么」能不能在 PC 上离设备造出来。
 
@@ -113,7 +113,7 @@ public static void m11054(StringBuilder sb2, Context context) {
 }
 ```
 
-从头读到尾，没有 `sign` / `sig` / `sp`，没有对参数排序后做 MD5，没有把 body 送去哈希，没有时间戳参与的校验串。全是明文的设备指纹 + `u` + `access_token`。`m11055(sb, "&k=", v)` 只是「v 非空才追加」的小工具，也不做任何编码或哈希。
+从头读到尾，没有 `sign` / `sig` / `sp`，也没有对参数排序后做 MD5、把 body 送去哈希或时间戳参与的校验串。全是明文的设备指纹 + `u` + `access_token`。`m11055(sb, "&k=", v)` 只是「v 非空才追加」的小工具，也不做任何编码或哈希。
 
 再确认这些值本身不是伪装的签名：
 
@@ -122,9 +122,9 @@ public static final String MM_DEVICE_INFO = Build.MANUFACTURER + " " + Build.MOD
 static { MM_SYSTEM_INFO = "Android " + Build.VERSION.RELEASE + "/" + Build.VERSION.SDK_INT; }  // "Android 13/33"
 ```
 
-`device`、`vc` 就是明文机型和系统版本。为排除签名藏在别处，把 okhttp 拦截器链也过了一遍：`com.taou` 下实现 `Interceptor`（混淆成 `tt.InterfaceC7189`）的只有三个——urlconnection 兼容垫片、只对 `update`/`update_bg` 两个端点补参数的 `AppendPostParamInterceptor`、异常处理拦截器。没有一个补签名头。请求体也没有签名字段。
+`device`、`vc` 就是明文机型和系统版本。为排除签名藏在别处，把 okhttp 拦截器链也过了一遍：`com.taou` 下实现 `Interceptor`（混淆成 `tt.InterfaceC7189`）的只有三个：urlconnection 兼容垫片、只对 `update`/`update_bg` 两个端点补参数的 `AppendPostParamInterceptor`、异常处理拦截器。没有一个补签名头。请求体也没有签名字段。
 
-结论落定：这个 App 的请求鉴权 = `access_token` + `u`，外加一组给风控看的明文设备参数，全程靠 TLS。签名这一层根本不存在。
+这个 App 的请求鉴权 = `access_token` + `u`，外加一组给风控看的明文设备参数，全程靠 TLS。签名这一层根本不存在。
 
 ---
 
@@ -162,7 +162,7 @@ invoke-static {v3}, Ljavax/crypto/Cipher;->getInstance(...)
 ... Cipher.init(ENCRYPT, pubkey) ; doFinal ; Base64.encodeToString(..., NO_WRAP)
 ```
 
-即 `epassword = base64(RSA/ECB/PKCS1(pubkey = getKey(), password))`。`getKey()` 返回的是一段 RSA **公钥**（X.509 DER 的 base64），公钥不是机密，抽一次就能用。而且这只在密码登录时用——短信验证码登录那条路径不加密：
+即 `epassword = base64(RSA/ECB/PKCS1(pubkey = getKey(), password))`。`getKey()` 返回的是一段 RSA **公钥**（X.509 DER 的 base64），公钥不是机密，抽一次就能用。而且这只在密码登录时用，短信验证码登录那条路径不加密：
 
 ```java
 // MMVerifyRegLoginCode.Req 的字段:短信码走 code，密码走 epassword
@@ -235,7 +235,7 @@ https://open.taou.com/maimai/user/v4/settings?version=6.6.84&ver_code=android_60
 &has_read_contacts_permission=0
 ```
 
-`access_token` + `u` 是唯一从登录设备取一次的账号态输入，其余设备参数从抓到的那条请求 query 里直接抄。因为没有签名，同一份 session 可以重放任意读端点——把请求装配封装成一个 CLI，`mm get <path>` 打任何 `/maimai` 下的接口就行。整套复现（端点构建 `api.py`、通用参数 `common.py`、登录 RSA `crypto.py`、装配发送 `client.py`、登录 `login.py`）加确定性单测放在 maimai-cli 仓库里，端点 URL / 通用参数装配（断言里显式验证「不含任何签名参数」）/ 登录 RSA 往返都对拍通过。
+`access_token` + `u` 是唯一从登录设备取一次的账号态输入，其余设备参数从抓到的那条请求 query 里直接抄。因为没有签名，同一份 session 可以重放任意读端点，把请求装配封装成一个 CLI，`mm get <path>` 打任何 `/maimai` 下的接口就行。整套复现（端点构建 `api.py`、通用参数 `common.py`、登录 RSA `crypto.py`、装配发送 `client.py`、登录 `login.py`）加确定性单测放在 maimai-cli 仓库里，端点 URL / 通用参数装配（断言里显式验证「不含任何签名参数」）/ 登录 RSA 往返都对拍通过。
 
 登录同理：`send_reg_login_code_v3` 发码（man/machine 是网易易盾，离设备要先解出 `yidun_validate` 传进去），`verify_reg_login_code_v3` 拿 `access_token` + `uid` 写回 session。之后所有读接口都用这份 session。
 
@@ -270,7 +270,7 @@ url=https://open.taou.com/maimai/pbs/global_config?…                          
 url=https://maimai.cn/sdk/global/share_config?…                                                 hasSig=false
 ```
 
-每条 `hasSig=false`，参数集和顺序跟静态读出来的 m11054 一字不差。`sdk/global/config` 那条还多带了 `new_device/rom_version/rom_name/vender/install_uuid/language/package_name`——正是 m11054 里对这个路径的条件分支，动静态对上。
+每条 `hasSig=false`，参数集和顺序跟静态读出来的 m11054 一字不差。`sdk/global/config` 那条还多带了 `new_device/rom_version/rom_name/vender/install_uuid/language/package_name`，正是 m11054 里对这个路径的条件分支，动静态对上。
 
 再看 native key 和登录。hook `NativeLib.getKey()`，走一次密码登录（假号假密码，本地算 epassword 时触发，登录被服务器拒、不给任何人发短信），拿到：
 
@@ -280,20 +280,20 @@ URL     https://open.taou.com/maimai/account/v5/verify_reg_login_code_v3?version
         &session_uuid=…&need_script=1   hasSig=false
 ```
 
-`MIGf…IDAQAB` 是标准的 base64 X.509 SubjectPublicKeyInfo，`AQAB` 就是指数 65537，128 字节模长——1024-bit RSA 公钥，坐实了 `getKey()` 返回公钥、只用来加密登录密码这一判断。
+`MIGf…IDAQAB` 是标准的 base64 X.509 SubjectPublicKeyInfo，`AQAB` 就是指数 65537，128 字节模长，即 1024-bit RSA 公钥，坐实了 `getKey()` 返回公钥、只用来加密登录密码这一判断。
 
-顺带纠了个静态时看走眼的细节：`verify` 的 `need_script=1` 是拼在通用参数**之后**（`verify_reg_login_code_v3?<common>&need_script=1`），不是塞在路径尾巴上。原因前面说过——`getNewApi` 返回时通用参数已经拼好了，`api()` 再往整串 query 后面追加。离设备复现按抓包这个顺序对齐即可。
+另外纠了一个静态时看走眼的细节：`verify` 的 `need_script=1` 是拼在通用参数**之后**（`verify_reg_login_code_v3?<common>&need_script=1`），不是塞在路径尾巴上。原因前面说过：`getNewApi` 返回时通用参数已经拼好了，`api()` 再往整串 query 后面追加。离设备复现按抓包这个顺序对齐即可。
 
 ## 七、复盘：和 BOSS 那套的对照
 
 同样是国内头部 App 的接口逆向，这两个的安全模型正好是两端：
 
 - **BOSS 把成本压在每请求加签**：`sp`/`sig` 出自 native `libyzwg.so`，签名输入含 body 的 CRC，响应还要 native 解密。离设备复现的门槛是把 native 算法（内嵌盐 + 混淆 RC4 + LZ4）啃出来。
-- **这个职场社交 App 把成本压在账号态**：请求本身零签名，鉴权就是 `access_token` + `u` 走 TLS。离设备复现的门槛几乎为零——抓一次 session 就能重放，真正的门槛前移到「怎么拿到并保住 `access_token`」（登录风控、网易易盾、设备指纹一致性）。
+- **这个职场社交 App 把成本压在账号态**：请求本身零签名，鉴权就是 `access_token` + `u` 走 TLS。离设备复现的门槛几乎为零，抓一次 session 就能重放，真正的门槛前移到「怎么拿到并保住 `access_token`」（登录风控、网易易盾、设备指纹一致性）。
 
 两种取舍各有代价。前者逆向一次成本高、但一劳永逸；后者请求层几乎裸奔，安全性全靠 token 的下发与风控兜底，一旦 token 泄漏，服务端只能靠设备指纹参数和行为风控识别异常，而那些参数在本例里都是明文、可随意伪造。
 
-- **先证否再动手**：本来准备找加签栈，`getNewApi` → `m11054` 读完确认没有签名，比假设有签名再去逆一个不存在的东西省时间。判据也硬——把通用参数装配器逐行读完、把 okhttp 拦截器链过一遍，两处都没有哈希/排序/body 摘要，才敢下这个结论。
+- **先证否再动手**：本来准备找加签栈，`getNewApi` → `m11054` 读完确认没有签名，比假设有签名再去逆一个不存在的东西省时间。判据也硬，把通用参数装配器逐行读完、把 okhttp 拦截器链过一遍，两处都没有哈希/排序/body 摘要，才敢下这个结论。
 - **native 里出现 `getKey` 不等于有请求签名**：这里的 `getKey()` 是 RSA 公钥，只服务于登录密码加密，跟每请求鉴权无关。追调用点（六处，两处 `encrypt`，落在登录和 JS bridge）比看方法名猜用途可靠。
 - **短信验证码登录是最干净的复现入口**：不碰 native 密钥，`send` + `verify` 两个 HTTP 请求就能离设备签发 `access_token`。
 

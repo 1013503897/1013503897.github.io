@@ -83,7 +83,7 @@ private static ZipFile openBaseApk();                                     // 从
 
 `invoke` 拿签名换算出 blob 名，`getVmByteCode` 把这个 blob 从 base.apk 里读出密文、交给 `VmDecryptor` 解密成明文，再喂给 native 的 `executeVM` 解释执行。对逆向的直接后果是：静态反编译只能看到 `invoke(...)` 这层空壳，真逻辑落在「加密 blob + native 解释器」里。要拿到逻辑只有两条路：把 VM 明文脱出来做反虚拟化，或者在 native 解释器里动态跟指令。本文走前者，一次把 blob 全解出来，之后离线慢慢分析，不必一直挂着真机。
 
-把 `libpairipcore.so` 拉进反汇编器，可以给这条链补上 native 侧的实证。它导出 `ExecuteProgram` / `JNI_OnLoad` / `JNI_OnUnload` 三个符号；`JNI_OnLoad` 在运行时通过 `RegisterNatives` 把 Java 的 `executeVM` 绑到 native 实现上，而方法名 `executeVM` 与签名 `([B[Ljava/lang/Object;)Ljava/lang/Object;` 都是运行时现从一张 XOR 表解码出来的——所以 `strings` / JADX 在 so 里搜不到 `executeVM`、`VMRunner` 这类明文，这是「静态只见空壳」的另一半原因。
+把 `libpairipcore.so` 拉进反汇编器，可以给这条链补上 native 侧的实证。它导出 `ExecuteProgram` / `JNI_OnLoad` / `JNI_OnUnload` 三个符号；`JNI_OnLoad` 在运行时通过 `RegisterNatives` 把 Java 的 `executeVM` 绑到 native 实现上，而方法名 `executeVM` 与签名 `([B[Ljava/lang/Object;)Ljava/lang/Object;` 都是运行时现从一张 XOR 表解码出来的，所以 `strings` / JADX 在 so 里搜不到 `executeVM`、`VMRunner` 这类明文，这是「静态只见空壳」的另一半原因。
 
 ![JNI_OnLoad 运行时 RegisterNatives 绑定 executeVM，方法名与签名均由 XOR 表在运行时解码（本样本 native 实现为 sub_6B1B4）](./assets/images-fig-jni-registernatives.png)
 
@@ -120,7 +120,7 @@ I/<proc>: System.exit called, status: 0
 
 ## 三、反篡改门：一种信号 hook 结构上拦不住的自毁
 
-拿到密钥只是过了第一道门。三绿真机上直接跑，如果进程里还挂着别的注入模块，启动大约 3 秒后照样自毁。这一层值得单独拆，因为它的处置方式很反直觉——**它不通过任何可以被 hook 的软件原语去杀自己**。
+拿到密钥只是过了第一道门。三绿真机上直接跑，如果进程里还挂着别的注入模块，启动大约 3 秒后照样自毁。这一层值得单独拆，因为它的处置方式很反直觉：**它不通过任何可以被 hook 的软件原语去杀自己**。
 
 现场是这样：设备上挂着一个会把自己的 `.so` 映射进目标进程的注入模块，这个 `.so` 会出现在目标的 `/proc/self/maps` 里。这个注入框架恰好自带 abort / kill 家族的拦截和日志，反而把 PairIP 自毁的每一步都打了出来：
 
@@ -137,7 +137,7 @@ F DEBUG  :   #01 pc 000000000001c000  libpairipcore.so
 F DEBUG  :   #02 pc 000000000002a038  libpairipcore.so
 ```
 
-`abort` 被这个框架中和掉之后，进程没活下来，而是换了个死法——转成 SIGSEGV，另开一份 tombstone：
+`abort` 被这个框架中和掉之后，进程没活下来，而是换了个死法，转成 SIGSEGV，另开一份 tombstone：
 
 ```
 signal 11 (SIGSEGV), code 1 (SEGV_MAPERR)
@@ -153,12 +153,12 @@ E libsigchain: Setting SIGSEGV to SIG_DFL
 
 1. `libpairipcore` 扫 `/proc/self/maps`，发现一个不该在的 `.so`（注入模块），判定被注入；
 2. 走自毁分支：故意给某个 `std::vector` 喂一个非法的、大于 `max_size()` 的 length。libc++ 在关异常的构建里，这一步不是抛异常，而是 `std::__throw_length_error` 直接 `abort()`。tombstone 里那句 `length_error was thrown in -fno-exceptions mode with message "vector"` 就是它的指纹，`#01` 落在 `libpairipcore.so` 的 `0x1c000` 附近；
-3. 关键在这：`abort` 被注入框架中和后，控制流并没有回到安全状态，而是让调用方拿着那个已经损坏的 vector（非法 length / 野指针）继续往下跑，紧接着就解引用了一个非法地址 → **SIGSEGV**。注意 SIGSEGV 的回溯 `#02` 落在 `0x1c004`，正好紧贴 abort 现场的 `0x1c000`——同一段代码，abort 被堵住后往下走了几条指令就踩了内存；
+3. 关键在这：`abort` 被注入框架中和后，控制流并没有回到安全状态，而是让调用方拿着那个已经损坏的 vector（非法 length / 野指针）继续往下跑，紧接着就解引用了一个非法地址 → **SIGSEGV**。SIGSEGV 的回溯 `#02` 落在 `0x1c004`，正好紧贴 abort 现场的 `0x1c000`，同一段代码，abort 被堵住后往下走了几条指令就踩了内存；
 4. 最后 `libsigchain: Setting SIGSEGV to SIG_DFL`：它主动把 SIGSEGV 的处理器复位成系统默认，确保这一次异常不会被链上任何 handler 吞掉。
 
-把 `esr 0x92000006` 解一下就更清楚它为什么拦不住。ARM64 的 ESR：EC = bits[31:26] = `0x24` 是「从低异常级（EL0）触发的 Data Abort」；IL = bit[25] = 1（32-bit 指令）；ISS 里 WnR=0（读操作）、DFSC = bits[5:0] = `0x06`（translation fault, level 2）。翻译过来就是：**用户态读了一个没有映射的地址，触发 CPU 硬件同步异常**。这跟 `kill` / `tgkill` / `rt_sigqueueinfo` / `abort` 这些走系统调用、能被 hook 或 seccomp 拦的软件原语完全是两条通路。它是 CPU 在执行那条访存指令时当场产生的。
+把 `esr 0x92000006` 解一下就更清楚它为什么拦不住。ARM64 的 ESR：EC = bits[31:26] = `0x24` 是「从低异常级（EL0）触发的 Data Abort」；IL = bit[25] = 1（32-bit 指令）；ISS 里 WnR=0（读操作）、DFSC = bits[5:0] = `0x06`（translation fault, level 2）。即**用户态读了一个没有映射的地址，触发 CPU 硬件同步异常**。这跟 `kill` / `tgkill` / `rt_sigqueueinfo` / `abort` 这些走系统调用、能被 hook 或 seccomp 拦的软件原语完全是两条通路。它是 CPU 在执行那条访存指令时当场产生的。
 
-把 tombstone 里的 `0x1c000` 落回 so 核对，判断就从「据日志推断」变成「有代码实锤」：`0x1c000` 正是 libc++ `std::__libcpp_verbose_abort`（本样本里 `sub_1BF24`）结尾那条 `BL abort`——它先 `android_set_abort_message()` 写下 `length_error ... "vector"` 那句话（tombstone 的 abort message 就来自这里），再调 `abort()`。而 `0x1c004` 就是这条 `BL` 的下一条指令：abort 被注入框架中和（强行返回）后，执行流落到 `0x1c004` 继续，随即踩内存 → SIGSEGV。这印证了前面的判断——abort 只是触发点，真正致命的是它后面那条访存，信号层的中和拦不住。
+把 tombstone 里的 `0x1c000` 落回 so 核对，判断就从「据日志推断」变成「有代码实锤」：`0x1c000` 正是 libc++ `std::__libcpp_verbose_abort`（本样本里 `sub_1BF24`）结尾那条 `BL abort`，它先 `android_set_abort_message()` 写下 `length_error ... "vector"` 那句话（tombstone 的 abort message 就来自这里），再调 `abort()`。而 `0x1c004` 就是这条 `BL` 的下一条指令：abort 被注入框架中和（强行返回）后，执行流落到 `0x1c004` 继续，随即踩内存 → SIGSEGV。这印证了前面的判断：abort 只是触发点，真正致命的是它后面那条访存，信号层的中和拦不住。
 
 ![自毁落点 std::__libcpp_verbose_abort（sub_1BF24）：android_set_abort_message 写入 abort 消息后于 0x1c000 调 abort()，与 tombstone 逐地址吻合](./assets/images-fig-selfdestruct-abort.png)
 
@@ -166,9 +166,9 @@ E libsigchain: Setting SIGSEGV to SIG_DFL
 
 ![反篡改检测原语：dl_iterate_phdr 遍历 link_map 枚举已加载模块，等价于 /proc/self/maps 的模块视图](./assets/images-fig-detection.png)
 
-这也说明一个常见思路并不成立：**靠「把自杀原语全 hook 掉」来对抗 PairIP 闪退，在结构上行不通**。本次这个注入框架已经拦下 abort、kill 家族，还装了 seccomp（日志里 `abort() neutralized`、`hooked syscall(seccomp)` 都已生效），进程仍以 SIGSEGV 收场。原因是它的自毁并不依赖那些原语，而是「制造一次真实的内存越界」，再 `SIG_DFL` 复位以保证不被拦截——信号 hook 在原理上覆盖不到。真正的根因不在处置端，而在检测端：maps 里那个暴露的 `.so`。正确方向是让注入不出现在 maps 里，而非拦截它自毁的那一步。
+这也说明一个常见思路并不成立：**靠「把自杀原语全 hook 掉」来对抗 PairIP 闪退，在结构上行不通**。本次这个注入框架已经拦下 abort、kill 家族，还装了 seccomp（日志里 `abort() neutralized`、`hooked syscall(seccomp)` 都已生效），进程仍以 SIGSEGV 收场。原因是它的自毁并不依赖那些原语，而是「制造一次真实的内存越界」，再 `SIG_DFL` 复位以保证不被拦截，信号 hook 在原理上覆盖不到。真正的根因在检测端：maps 里那个暴露的 `.so`。正确方向是让注入不出现在 maps 里，而非拦截它自毁的那一步。
 
-顺带把检测面的边界划一下：maps 扫描只是 PairIP 反篡改的一角。独立研究里还记录了 `ptrace` / `/proc/self/status` 反调试、对 frida 的内存特征扫描、以及对自身代码段的 FNV-1a·CRC32 校验（见文末 Yamin Dev）。本文不铺开这张清单，只复现本次现场**真正触发自毁**的那条 `maps → abort → SIGSEGV` 链路——因为决定「能不能让它先跑起来」的恰好是这一条，其余检测项在本次注入形态下没被触发。
+顺带把检测面的边界划一下：maps 扫描只是 PairIP 反篡改的一角。独立研究里还记录了 `ptrace` / `/proc/self/status` 反调试、对 frida 的内存特征扫描、以及对自身代码段的 FNV-1a·CRC32 校验（见文末 Yamin Dev）。本文不铺开这张清单，只复现本次现场**真正触发自毁**的那条 `maps → abort → SIGSEGV` 链路，因为决定「能不能让它先跑起来」的恰好是这一条，其余检测项在本次注入形态下没被触发。
 
 ---
 
@@ -178,8 +178,8 @@ E libsigchain: Setting SIGSEGV to SIG_DFL
 
 对照着做两件事，差别很干净：
 
-- **只读枚举**——反射列 `VMRunner` 的方法、列 `com.pairip.*` 的类名（前两节那两张表就是这么拿到的）：进程稳定存活，数据完整。说明用户态反检测 frida 把 frida 自己的存在藏住了，第三节步骤 1 的 maps 扫描没扫到 frida，attach 和反射本身是安全的。
-- **hook `VMRunner` 的任一方法**——`getVmByteCode`（哪怕只在返回处读一下）、`executeVM`、`readByteCode` 都试过：hook 能装上，但进程一旦真的调用到被 hook 的方法，立刻 `libsigchain: Setting SIGSEGV to SIG_DFL` 自毁，`process-terminated`，一个字节都没 dump 出来。
+- **只读枚举**：反射列 `VMRunner` 的方法、列 `com.pairip.*` 的类名（前两节那两张表就是这么拿到的）：进程稳定存活，数据完整。说明用户态反检测 frida 把 frida 自己的存在藏住了，第三节步骤 1 的 maps 扫描没扫到 frida，attach 和反射本身是安全的。
+- **hook `VMRunner` 的任一方法**：`getVmByteCode`（哪怕只在返回处读一下）、`executeVM`、`readByteCode` 都试过：hook 能装上，但进程一旦真的调用到被 hook 的方法，立刻 `libsigchain: Setting SIGSEGV to SIG_DFL` 自毁，`process-terminated`，一个字节都没 dump 出来。
 
 结论是 PairIP 除了扫 maps，还盯着自己 `VMRunner` 这些方法的完整性。frida 的 hook（无论 Java 层 `replaceMethod` 还是底层 Interceptor）本质是改写方法的 ArtMethod 入口：把 `entry_point_from_quick_compiled_code` 指到蹦床上；这个入口一变，被完整性检查（对方法体 / 入口的比对）命中，触发和第三节同款的自毁。
 
@@ -196,7 +196,7 @@ E libsigchain: Setting SIGSEGV to SIG_DFL
 
 ## 五、实战：先让它跑起来，再把 28 个 blob 脱成明文
 
-到这里三道门都摸清了，落到操作上就是两步：让进程活到能解密，再用不触发完整性检查的姿势把 blob 逐个解出来。
+三道门都摸清了，落到操作上就是两步：让进程活到能解密，再用不触发完整性检查的姿势把 blob 逐个解出来。
 
 **让它跑。** 前面已经证明需要两个条件同时成立：过 Integrity（拿密钥）+ 注入不露脸（不被 maps 检测命中）。第一条靠 PlayIntegrityFix 保住，第二条要把那个会映射进目标进程的可见注入模块清掉。这类注入多是 Zygisk 模块，运行时 disable 对已经 fork 出来的 zygote 不生效，得走确定性路线，落 disable 标记再重启：
 
@@ -246,7 +246,7 @@ NAMES.forEach(function (nm) {
 
 `00 49 41 50`（`\x00IAP`）是判断「这段 byte[] 是否为解密成功的 VM 明文」的通用标志，跨样本都可用于判定解密是否成功；紧跟着 `02 00 00 00` 是版本号 2；再往后是 PairIP 自研 VM 的指令流。
 
-这里要提前点明一层，免得误以为「脱出明文＝能直接读」：这段指令流不是照着表就能翻的。它按目标不同还叠着 per-build 的 **opcode 置换**——同一条 `OP_ADD`，这个包里可能编号 `0x17`、换个包就成 `0x8F`，静态直接照固定表翻指令会立刻 desync（对不齐指令边界，紧接着连长度都算错）；操作数还有一层运行时解码，native dispatcher 又做了控制流平坦化，得靠符号执行逐个认 handler。也就是说本文停在的 `\x00IAP` 明文，是反虚拟化的**原料**而不是**成品**；这一阶段真正的难点在文末 Haxymad（多态 opcode + 内层 RC4 解码 + 平坦化 dispatcher）和 MatrixEditor（指令集与反汇编 / 反编译工具）里有专门处理。
+这里要提前点明一层，免得误以为「脱出明文＝能直接读」：这段指令流不是照着表就能翻的。它按目标不同还叠着 per-build 的 **opcode 置换**：同一条 `OP_ADD`，这个包里可能编号 `0x17`、换个包就成 `0x8F`，静态直接照固定表翻指令会立刻 desync（对不齐指令边界，紧接着连长度都算错）；操作数还有一层运行时解码，native dispatcher 又做了控制流平坦化，得靠符号执行逐个认 handler。也就是说本文停在的 `\x00IAP` 明文，是反虚拟化的**原料**而不是**成品**；这一阶段真正的难点在文末 Haxymad（多态 opcode + 内层 RC4 解码 + 平坦化 dispatcher）和 MatrixEditor（指令集与反汇编 / 反编译工具）里有专门处理。
 
 到这一步，反虚拟化的原料（28 段明文字节码）已经全部到手，指令集分析 / 反虚拟化属于下一阶段，不在本文范围。
 

@@ -71,7 +71,7 @@ This feature does not support Android ver4.4 and lower
 
 拦截的不是 TLS pin 证书，而是「系统代理设置被探测」。在 Windows + 系统代理 + mitmproxy 上直接抓注册 RPC，入口不可用；后续需透明路由，或在进程内、加密前抠明文。
 
-此步无「解密失败的密文」可分析——请求未按预期路径发出。由此确定方向：该协议的明文只存在于进程内、`RequestEncryption` 组包之前，线路上只有一段 `sign`。
+此步无「解密失败的密文」可分析，请求未按预期路径发出。由此确定方向：该协议的明文只存在于进程内、`RequestEncryption` 组包之前，线路上只有一段 `sign`。
 
 ---
 
@@ -131,7 +131,7 @@ umidToken  = null
 
 ### 3.3 否证
 
-注册页按 Next，没有发码 operation-type。名字带 Otp 的 `OtpVerificationFacade`（Quake）在注册路径上也不触发——静态确认它挂在 reset_mpin，不是注册。
+注册页按 Next，没有发码 operation-type。名字带 Otp 的 `OtpVerificationFacade`（Quake）在注册路径上也不触发，静态确认它挂在 reset_mpin，不是注册。
 
 结论：RPC 线是旁路证据，不是注册 OTP 主路径。需从 UI 往下静态追。
 
@@ -233,7 +233,7 @@ smali 明确分支：
 | X-Env-Info | `m()` = Base64 only，不是 AES |
 | 其它（X-UDID、X-FlowId、Time…） | 透传明文 |
 
-组包时此处易错：把 `X-Env-Info` 也做 AES 会与真机不一致。「非空才加密」是一个隐含条件——`Authorization` 在注册期是空串，`d()` 判空后置 null，gson 省略 null 键，因此最终 payload 中没有 Authorization 键，`sec.enc` 清单里也不出现它。这条「空 → 缺席」连锁在复现时容易被忽略。
+组包时此处易错：把 `X-Env-Info` 也做 AES 会与真机不一致。「非空才加密」是一个隐含条件：`Authorization` 在注册期是空串，`d()` 判空后置 null，gson 省略 null 键，因此最终 payload 中没有 Authorization 键，`sec.enc` 清单里也不出现它。复现时容易漏掉这条「空 → 缺席」连锁。
 
 ### 5.3 body 加密 `c()`：只动 `encParams` 点名路径
 
@@ -342,7 +342,7 @@ initSign → update(message UTF-8) → sign
 Base64.encodeToString(..., 2)
 ```
 
-私钥空时 `sign` 会 `blockingGet` 触发握手再签——对应「第一次请求前必握手」（§8）。
+私钥空时 `sign` 会 `blockingGet` 触发握手再签，对应「第一次请求前必握手」（§8）。
 
 ### 6.3 gson 字节等价约束（四条件）
 
@@ -369,7 +369,7 @@ gson_dumps({"msisdn":"3K3bz/aoHS3Hj8sN5ie/bw==", "udid":"AND..."})
 
 **③ 省略 null 键**：值为 null 的键 gson 默认不输出（前面 Authorization 空 → 缺席、method=POST → null → 省略，都依赖此）。
 
-**④ 字段顺序 = ART 字段名字母序**。此条容易被忽略：gson 按 Java 反射得到的字段顺序序列化，ART 上该顺序为字段名字母序。本地组包时 dict 的键须按此序构造，否则 payload 字节改变、签名不通过。三个容器实测顺序：
+**④ 字段顺序 = ART 字段名字母序**。gson 按 Java 反射得到的字段顺序序列化，ART 上该顺序为字段名字母序。本地组包时 dict 的键须按此序构造，否则 payload 字节改变、签名不通过。三个容器实测顺序：
 
 | 容器 | 字段字母序 |
 |---|---|
@@ -388,7 +388,7 @@ X-Tracker, X-UDID, X-UserId
 
 OTP 路径只设了其中 `Time / X-Correlator-Id / X-Env-Info / X-FlowId / X-Package-Id / X-Reg-Channel / X-Tracker / X-UDID`（与实测 `header_keys` 一致），其余键在场为 null → 省略。
 
-四条中缺任一条：本地 payload 字节即与 App 不一致，`SHA256withRSA` 无法通过服务端验签。其表现为验签失败而非解密失败——服务端多回 `422 Invalid Signature` 或网关拒绝，易被误判为加密实现错误（§11 的 register 段即出现过一次 `code:400 Failed verification at prehandling`）。
+四条中缺任一条：本地 payload 字节即与 App 不一致，`SHA256withRSA` 无法通过服务端验签。其表现为验签失败而非解密失败，服务端多回 `422 Invalid Signature` 或网关拒绝，易被误判为加密实现错误（§11 的 register 段即出现过一次 `code:400 Failed verification at prehandling`）。
 
 ---
 
@@ -526,7 +526,7 @@ client_priv len=1624（不贴全文）
 
 ## 9. X-Env-Info 与设备标识
 
-注册 body 几乎只有号与 udid。设备画像在 `X-Env-Info` JSON 中（再 Base64 进 WCSign header，`X-Env-Info` 走 `m()` 即纯 Base64，不 AES——见 §5.2）。
+注册 body 几乎只有号与 udid。设备画像在 `X-Env-Info` JSON 中（再 Base64 进 WCSign header，`X-Env-Info` 走 `m()` 即纯 Base64，不 AES，见 §5.2）。
 
 ### 9.1 完整字段（对齐 `GNetworkUtil.getMobileEnvInfo` + `d()` + `getEnvInfo(scenario)`）
 
@@ -547,7 +547,7 @@ extendInfo{
 定位失败 → extendInfo.lbsErrorCode = 1000（lab 抓包常见此值）
 ```
 
-然后 `d()` 会把 `MobileEnvInfo` 转成 Map，再往同一个 JSON 里塞一批镜像键——这些键塞进 `X-Env-Info` 这个 JSON 对象里，不是 HTTP 头：
+然后 `d()` 会把 `MobileEnvInfo` 转成 Map，再往同一个 JSON 里塞一批镜像键，这些键塞进 `X-Env-Info` 这个 JSON 对象里，不是 HTTP 头：
 
 ```text
 User-Agent, X-DFP-TOKEN(=apdidToken), X-APP-VERSION,
@@ -569,7 +569,7 @@ X-PHONE-BRAND, X-PHONE-MANUFACTURER, X-PHONE-MODEL, X-PHONE-OS-VERSION
 }
 ```
 
-`deviceId: "amtK7+u7WlUDAGJU3vpuQ3gI"` 即 utdid（24 字符 Base64）——§9.3 展开其生成算法。
+`deviceId: "amtK7+u7WlUDAGJU3vpuQ3gI"` 即 utdid（24 字符 Base64），§9.3 展开其生成算法。
 
 ### 9.2 硬字段与 A/B
 
@@ -587,8 +587,8 @@ X-PHONE-BRAND, X-PHONE-MANUFACTURER, X-PHONE-MODEL, X-PHONE-OS-VERSION
 A/B 思路（只改 env 一个维度，看 generate 的 `code`）已坐实：
 
 - `scenario_id` / `appVersion` build 号是硬校验（缺则 `code:1`）；
-- `deviceId` 不是「去掉就过 / 加上就失败」的开关——`deviceId=on` 与 `off` 两种变体 generate 都 `code:0`。早前「删掉 deviceId 就好」的判断有误，smali 里 `deviceId` 恒等于 utdid；
-- 同一 session 第 3 次 generate → `code:2 "Retries exceeded"`（OT201421）——限流按 `udid/apdid` 身份计，不是字段问题；`pm clear` 可清本地侧计数。
+- `deviceId` 不是「去掉就过 / 加上就失败」的开关，`deviceId=on` 与 `off` 两种变体 generate 都 `code:0`。早前「删掉 deviceId 就好」的判断有误，smali 里 `deviceId` 恒等于 utdid；
+- 同一 session 第 3 次 generate → `code:2 "Retries exceeded"`（OT201421），限流按 `udid/apdid` 身份计，不是字段问题；`pm clear` 可清本地侧计数。
 
 ### 9.3 设备身份三件套：哪些能纯离设备造
 
@@ -617,7 +617,7 @@ X-Env-Info 里三个 native 相关标识，逆向后可复现性差别较大，�
 - `hashCode` = Java `String.hashCode`（`h = 31h + c`，32 位溢出）
 - 校验器 `c.b(String)`：长度 == 24 且字符集 `[0-9a-zA-Z=/+]`
 
-utdid 半可复现：无法从设备确定性反推（含时间戳 + 随机），但算法已知，可铸一个结构合法、HMAC 自洽的新值（`gen_utdid()`）。持久化较顽固（跨 app、跨卸载）：`Settings.System["mqBRboGZkQPcAkyk"]`（明文）/`["dxCRMxhQkdGePGnp"]`（加密），SP `Alvin2/UTDID2`，外置 `/sdcard/.UTSystemConfig/Global/Alvin2`、`/sdcard/.DataStorage/ContextData`——任一命中就回填其余。更换 utdid 需清除上述全部位置，否则仅清 app 数据无效。
+utdid 半可复现：无法从设备确定性反推（含时间戳 + 随机），但算法已知，可铸一个结构合法、HMAC 自洽的新值（`gen_utdid()`）。持久化较顽固（跨 app、跨卸载）：`Settings.System["mqBRboGZkQPcAkyk"]`（明文）/`["dxCRMxhQkdGePGnp"]`（加密），SP `Alvin2/UTDID2`，外置 `/sdcard/.UTSystemConfig/Global/Alvin2`、`/sdcard/.DataStorage/ContextData`，任一命中就回填其余。更换 utdid 需清除上述全部位置，否则仅清 app 数据无效。
 
 小结：三者中 umid 无关、utdid 可铸，唯一硬缺口为 apdidToken，下一节展开。
 
@@ -664,7 +664,7 @@ baseInitToken → doFirst → createStaticRequest → RPCService.updateStaticDat
 **谁在 Java、谁在 native**（区分「改机盖得到」与「盖不到」）：
 
 - Java 侧实读：`TelephonyManager.getDeviceId()`(IMEI)、`Settings.Secure.android_id`、`WifiManager.getBSSID()`、`getInstalledPackages(64)`（装机列表）；
-- Java 不读、若采则在 native：IMSI、SIM serial、`getMacAddress`、BOOTLOADER——这些在 `libAPSE` 里采，Java hook 看不到；
+- Java 不读、若采则在 native：IMSI、SIM serial、`getMacAddress`、BOOTLOADER，这些在 `libAPSE` 里采，Java hook 看不到；
 - `Configuration.secret != null` 时整张 `dataMap` 再过 `JNIBridge.aesEncrypt` native 加密 → `{default:<enc>, wbType:secret}`。这即离设备直铸中 `default` 字段的来历。
 
 **native JNI 面**（`libAPSE_9.0.2.so`，`ApdidJNIBridge`）：
@@ -674,7 +674,7 @@ initCollect / getCollectInfo / getCrashInfo / isCrashBefore / decryptConfig /
 getDynData / getAA13 / getAD102 / getAD104 / getAD108 / getAE20 / getNativeProp
 ```
 
-硬件指纹计算、`ed/ek` 加密、`dataMap` 的 AES 封装均在此，Java 层不可见——这是「必须复现白盒」这一判断的来源。
+硬件指纹计算、`ed/ek` 加密、`dataMap` 的 AES 封装均在此，Java 层不可见，这是「必须复现白盒」这一判断的来源。
 
 **落库**：`saveToStorage` 把服务器铸的 token 写进 SharedPreferences 文件 `openapi_file_pri` / key `openApiGCash`（加密）；相关 `vkeyid_profiles_v4`（dynamic_key）、`last_apdid_env`、native crash-guard `filesDir/sc_edge`。之后 `getToken()` 都从这里取缓存，不重算。
 
@@ -728,11 +728,11 @@ requestData=[{ "apdid":"", "os":"android", "dataMap":{"wbType":"1","default":<�
 
 若为签名/加密错误，错码与真码应同样在验签前失败；实际错码走到了业务层的 OTP 比对（1011），真码过了比对（code:0），说明加密签名层正确。
 
-**③ 反证「拦截说」**：`key:null` 的 verify 之后，`isGcashRegistered` 立刻回 `200` + 可导航业务体。若 verify 被风控拦，下一跳应是 `403 {code:143}`（该形态确实复现过——即「没有前置 verify 就裸调 isGcashRegistered」，补上 verify 即 200），而非业务体。
+**③ 反证「拦截说」**：`key:null` 的 verify 之后，`isGcashRegistered` 立刻回 `200` + 可导航业务体。若 verify 被风控拦，下一跳应是 `403 {code:143}`（该形态确实复现过，即「没有前置 verify 就裸调 isGcashRegistered」，补上 verify 即 200），而非业务体。
 
 **④ 换真机铸造 token 仍 key:null**：A/B 过「离设备空壳 mint 的 apdid」与「Pixel6 真机跑完整 getColorInfo 白盒铸的 token」，两者 verify 都是 key:null，排除「token 太水被拦」。
 
-**⑤ jadx 坐实**：`SuccessVerifyBody` 只有 `key` 一个字段；新注册 UI 的成功 handler（`g1`）不读 key。`"Something went wrong."` 同时是客户端本地 `OtpCodeUtilImp.GENERIC_HEADER` 文案，服务端也回了同句——文案表示失败，字段表示成功。
+**⑤ jadx 坐实**：`SuccessVerifyBody` 只有 `key` 一个字段；新注册 UI 的成功 handler（`g1`）不读 key。`"Something went wrong."` 同时是客户端本地 `OtpCodeUtilImp.GENERIC_HEADER` 文案，服务端也回了同句，文案表示失败，字段表示成功。
 
 | 假说 | 证据 | 结论 |
 |---|---|---|
@@ -758,7 +758,7 @@ encParams(19) = [msisdn, firstName, lastName, email, dateOfBirth, address, token
                  paTown, paZipcode, nationality, mainSourceOfFunds]
 ```
 
-明文 body 里还有 `referralCode`、`version="1213"`、`rdsData`、`termsAndConditions="true"`（后两者明文，不进加密集），`udid` 键置 null（gson 省略，服务器读 `X-UDID` 头）。`caZipcode/paZipcode` 是小写 c——这类「1213 版精确键名」错一个字母服务器就当缺字段。
+明文 body 里还有 `referralCode`、`version="1213"`、`rdsData`、`termsAndConditions="true"`（后两者明文，不进加密集），`udid` 键置 null（gson 省略，服务器读 `X-UDID` 头）。`caZipcode/paZipcode` 是小写 c，这类「1213 版精确键名」错一个字母服务器就当缺字段。
 
 ### 11.1 `rdsData`：一个易错点
 
@@ -832,7 +832,7 @@ installed … rpc=true
 GCash 存在 native 完整性自校，通用 Dobby/inline hook 会触发崩溃：
 
 - 现象：点输入 / Next 后约 2–4s 死，`main gone status=11`；
-- 根因：`libgcash_sc.so` 在线程 `gcash-sc-load` 的 `phdr_cb` 触发 SIGSEGV——它遍历自己的 program header 做 `.so` CRC 自校，Dobby 改了目标 `.text` 即被检出；
+- 根因：`libgcash_sc.so` 在线程 `gcash-sc-load` 的 `phdr_cb` 触发 SIGSEGV，它遍历自己的 program header 做 `.so` CRC 自校，Dobby 改了目标 `.text` 即被检出；
 - 另一处：早期 seccomp 用 `SECCOMP_RET_ERRNO|EPERM` 拦 `exit/exit_group`，触发 `ApplicationExitInfo SIGILL status=4`。
 
 处理（保活栈，非本文重点，简述）：删除 `code_cache` 与 `/data/local/tmp` 下的坏 `libgcash_sc.so`，seccomp 改 `RET_TRACE`（plain `exit(93)` 放行），配 `ptrace guard` 持续 `FREEZE exit_group`，`vmtrace` 关闭（Dobby 挂 libAPSE 会触发 CRC）。处理后 OtpMsisdnActivity 存活 ≥25–35s，主 pid 稳定。

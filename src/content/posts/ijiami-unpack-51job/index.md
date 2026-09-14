@@ -172,7 +172,7 @@ switch (host) {
 崩溃表现为主线程向 `libart.so` 的 `.text` 代码段执行写操作时触发 `SEGV_ACCERR`。崩溃现场 pc 位于匿名可执行段，`x18` 寄存器指向爱加密的 `libexec.so`，`x27 = 0xd503233f`（AArch64 下的 `PACIASP` 指令），`x1 = 0x1000`（4KB 内存页大小）。
 分析原因为：爱加密壳在启动初期会通过 `mmap` 创建私有内存空间，逐页覆盖原始 libart 函数序言（包含 PAC 保护指令）以建立其私有 hook 机制。若脱壳 worker 线程在此阶段并发 attach 至 ART 并解析符号，将与壳的内存覆盖逻辑产生写冲突并引发异常。对照实验表明：关闭脱壳开关（`unpack=0`）时 App 正常运行；开启后一旦 worker 执行 `AttachCurrentThread`，主线程即触发崩溃。
 
-检查 `libexec.so` 导入表可以印证上述行为：虽然敏感字符串在静态分析中已加密，但其导入的系统 API 组合明确展示了其运行时行为特征——`mmap`、`mprotect`、`memcpy` 用于修改代码段属性并回写指令，`dlopen`、`dl_iterate_phdr` 用于模块定位，`ptrace`、`kill`、`fork` 负责反调试检测，`sigsetjmp` 与 `siglongjmp` 用于异常处理：
+检查 `libexec.so` 导入表可以印证上述行为：虽然敏感字符串在静态分析中已加密，但其导入的系统 API 组合明确展示了其运行时行为特征：`mmap`、`mprotect`、`memcpy` 用于修改代码段属性并回写指令，`dlopen`、`dl_iterate_phdr` 用于模块定位，`ptrace`、`kill`、`fork` 负责反调试检测，`sigsetjmp` 与 `siglongjmp` 用于异常处理：
 
 ![image9](./assets/images-09.png)
 
@@ -253,13 +253,13 @@ def sign_cupid(after_host, params, host="cupid.51job.com"):
 
 ## 附录：其他壳的 /proc/pid/mem 对照
 
-同一套 root 读 `/proc/pid/mem` + 按 `file_size` 跨区重组的手法，换到不同加固上的差异——辨别壳型只需 dump 完看几个方法的 smali。
+同一套 root 读 `/proc/pid/mem` + 按 `file_size` 跨区重组的手法，换到不同加固上的差异：辨别壳型只需 dump 完看几个方法的 smali。
 
 ### 整体加密壳（梆梆 SecNeo）
 
-另一招聘 App 的 Application 为 `com.stub.StubApp`，梆梆 SecNeo 加固。其解密后的 DEX 不落在 `[anon:dalvik-DEX data]` 命名区，而是梆梆自行 `mmap` 的**无名匿名区**——因此扫描目标不是按名 grep，而是遍历所有 `path==''` 的可读匿名区检索 `dex\n035`。扫出 7 个 DEX，同样按 vaddr + file_size 整段读、裁尾、重算校验，jadx 加载出 16140 类。
+另一招聘 App 的 Application 为 `com.stub.StubApp`，梆梆 SecNeo 加固。其解密后的 DEX 不落在 `[anon:dalvik-DEX data]` 命名区，而是梆梆自行 `mmap` 的**无名匿名区**，因此扫描目标不是按名 grep，而是遍历所有 `path==''` 的可读匿名区检索 `dex\n035`。扫出 7 个 DEX，同样按 vaddr + file_size 整段读、裁尾、重算校验，jadx 加载出 16140 类。
 
-区别在方法体：随手看一个方法的 smali 是**完整字节码**（有真实指令，非 `return null` + nop），说明它是**整体加密壳**（整个 DEX 加密、启动解密回内存），内存 dump 一把即得完整代码，比抽取壳好办。辨别一句话：**dump 完看方法 smali，有真实指令是整体壳，只剩 nop 是抽取壳。**
+区别在方法体：随手看一个方法的 smali 是**完整字节码**（有真实指令，非 `return null` + nop），说明它是**整体加密壳**（整个 DEX 加密、启动解密回内存），内存 dump 一把即得完整代码，比抽取壳好办。**dump 完看方法 smali 就能辨别：有真实指令是整体壳，只剩 nop 是抽取壳。**
 
 （该 app Java 层几乎全是 `flutter_*` 插件桥，业务在 Dart 编译的 `libapp.so`（AOT 快照）里，是另一条 Flutter/Dart 逆向的活，不在本文范围。）
 
@@ -272,8 +272,8 @@ $ su -c 'grep TracerPid /proc/<pid>/status'
 TracerPid:	8015
 ```
 
-`TracerPid` 非 0——进程被另一进程 ptrace 了，这是百度加固的**自 ptrace**：fork 一个子进程 ptrace-attach 到父进程、占住 tracer 槽，别的调试器（frida、gdb）就 attach 不上。
+`TracerPid` 非 0，进程被另一进程 ptrace 了，这是百度加固的**自 ptrace**：fork 一个子进程 ptrace-attach 到父进程、占住 tracer 槽，别的调试器（frida、gdb）就 attach 不上。
 
-但这拦不住脱壳：**root 读 `/proc/pid/mem` 不走 ptrace**——它走内核 `mem` 文件的读路径，仅做一次 `ptrace_may_access` 权限检查，root 的 `CAP_SYS_PTRACE` 直接放行，无需成为 tracer。同一套 dump 流水线扫命名的 `[anon:dalvik-DEX data]` 区，出 19973 类，方法体完整（百度加固亦为整体壳）。
+但这拦不住脱壳：**root 读 `/proc/pid/mem` 不走 ptrace**，它走内核 `mem` 文件的读路径，仅做一次 `ptrace_may_access` 权限检查，root 的 `CAP_SYS_PTRACE` 直接放行，无需成为 tracer。同一套 dump 流水线扫命名的 `[anon:dalvik-DEX data]` 区，出 19973 类，方法体完整（百度加固亦为整体壳）。
 
-一句话：**反调试防的是「attach 进来调试」，防不住「从外面读内存」；脱壳选后者，就跟反调试脱钩了。**
+**反调试防的是「attach 进来调试」，防不住「从外面读内存」；脱壳选后者，就跟反调试脱钩了。**

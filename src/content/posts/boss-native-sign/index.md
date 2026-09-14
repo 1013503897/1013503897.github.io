@@ -59,7 +59,7 @@ private static void f(mf0.b bVar, String url, boolean z11) {
 - `key` 由 `config.m.j(url)` 白名单决定，批量端点 `/api/batch/requests` 落在白名单里 → key=null。
 - 还有一个坑先记下：`strD` 超过 5000 字符时，签名用的是截断到 5000 的 strD（但 `sp` 用的是完整的）。
 
-`com.twl.signer.a` 就是这层 native 的 Java 薄封装，jadx 里看得很直白——每个方法都只是转发到对应的 `nativeXxx`：
+`com.twl.signer.a` 就是这层 native 的 Java 薄封装，jadx 里看得很直白，每个方法都只是转发到对应的 `nativeXxx`：
 
 ![com.twl.signer.a 的反编译：a() 转发 nativeCalculateCRC32（strA）、d() 转发 nativeEncodeRequest（sp）、e() 转发 nativeEncodeRequestBody（请求体密文），i() 同理转发 nativeSignature（sig）](./assets/images-04-jadx-signer-bridge.png)
 
@@ -244,7 +244,7 @@ jobs: 15
 - **差分预言机 + IDA 定点**，对付「带内嵌盐/密钥的混淆 native 加签」最省时间。纯黑盒推不出内嵌盐（等价求原像），纯静态啃 OLLVM 又慢；先用 unidbg 把 so 跑成预言机，差分探针把算法形状（MD5？流密码？压缩？key 是否参与）摸清，再拿这些先验去 IDA 定点盐和框架。两边对着看，比单啃一边快。
 - **「跑对」要以字节级对拍为准**。sig 我坚持对到 `md5(input|salt|key)` 完全一致才算数；sp 因 liblz4 编码器差异不可能字节全等，就换成「round-trip 解回原文 + 头 16 字符一致」这种能证明语义正确的判据，同时想清楚它为什么服务器还认（只解压、不比字节）。判据选错，就会把「以为对」当成「对」。
 - **签名签的是加密体的 CRC，这类设计对离设备复现其实友好**：只要我自己的 `body→crc→sig` 自洽，服务器按收到的 body 重算 CRC 校验就过，不要求和某个设备抓的字节一致。
-- **报错驱动装配**：`-1001 请求参数非法` → 补 `app_id`；`invalid auth` → 补 `t2`。每一步服务器的错误码都在告诉你还差什么，比盲猜 wire 格式快得多。
+- **报错驱动装配**：`-1001 请求参数非法` → 补 `app_id`；`invalid auth` → 补 `t2`。每一步服务器的错误码都在指出还差什么，比盲猜 wire 格式快得多。
 
 ### 关键地址/公式（v14.050 arm64-v8a）
 

@@ -64,7 +64,7 @@ JNI_OnLoad(@0x14ef8)
       └─ sub_1D3F4(29.8KB "反篡改主调度器"，总编排)
 ```
 
-那张 base64 表里，`ActivityThread`/`LoadedApk`/`mApplication`/`mProviderMap` 正是**反射接管 App 的 `Application`/`ContentProvider` 创建**要用的字段，梆梆靠反射把自己嵌进启动流程，在真 `Application` 跑起来前先接管。顺便，这也是**第二套串混淆**:框架反射名用 base64 藏，检测串则用 XOR(0xAC)(见检测面那节)。
+那张 base64 表里，`ActivityThread`/`LoadedApk`/`mApplication`/`mProviderMap` 正是**反射接管 App 的 `Application`/`ContentProvider` 创建**要用的字段，梆梆靠反射把自己嵌进启动流程，在真 `Application` 跑起来前先接管。这也是**第二套串混淆**:框架反射名用 base64 藏，检测串则用 XOR(0xAC)(见检测面那节)。
 
 ![.init_array 唯一构造器在 JNI_OnLoad 之前预解码一张 base64 表:mMainThread/ActivityThread/ContentProvider/LoadedApk/mProviderMap/mLocalProvider，这些正是反射接管 Application 与 ContentProvider 创建的挂点](./assets/images-fig-detect-initarray.png)
 
@@ -138,7 +138,7 @@ JNI_OnLoad(@0x14ef8)
 ### 完整性:CRC 自校验 + inotify 自监视
 
 - **CRC32 自校验**:`.rodata` 有 `crc32`/`get_crc_table`(zlib 那套)，经指针表调，对自身代码和资源算 CRC 跟内置值比。动态里反复 `stat`/`open` 自己的 `base.apk`/`split_config.apk`/`base.vdex`/`base.odex`/`base.art`/`libDexHelper.so`，走的就是这一路。
-- **inotify 自监视**(`0xab0e0` 那张事件名表):`ATTRIB`/`CLOSE_WRITE`/`DELETE_SELF`/`MOVE_SELF` 一整套，盯着自己的 `.so`/`apk`/`dex` 有没有被删被改。这条对脱壳落地时**尤其要留意**，往磁盘落 dump 时可能正好触发它。
+- **inotify 自监视**(`0xab0e0` 那张事件名表):`ATTRIB`/`CLOSE_WRITE`/`DELETE_SELF`/`MOVE_SELF` 一整套，盯着自己的 `.so`/`apk`/`dex` 有没有被删被改。这条在脱壳落地时要留意，往磁盘落 dump 时可能正好触发它。
 
 ### syscall 走指针表:PLT/inline hook 从根上失效
 
@@ -169,7 +169,7 @@ JNI_OnLoad(@0x14ef8)
 
 ![sub_567E0 自毁序列:装好目标 0x61C 和梆梆魔数 0xB6A2，经 X0(=0) 把 SP、LR 一起清零，最后 BR 到 0x61C，SP=LR=0 让这次崩溃无法从回溯还原](./assets/images-fig-suicide-disasm.png)
 
-拆开就是:清 SP、清 LR、`BR` 到低地址。对照先判性质那节的 tombstone 完全吻合，`BR` 到 `0x1f4`/`0x61c` 给出 `pc`，`MOV SP，X0`(X0=0)给出 `sp=0`，`MOV X30，X0` 给出 `lr=0`。达到的就是既崩、又让工具还原不出栈的效果。
+拆开就是:清 SP、清 LR、`BR` 到低地址。对照先判性质那节的 tombstone 完全吻合，`BR` 到 `0x1f4`/`0x61c` 给出 `pc`，`MOV SP，X0`(X0=0)给出 `sp=0`，`MOV X30，X0` 给出 `lr=0`。结果是进程崩掉，而且工具还原不出调用栈。
 
 这套序列有个字节级不变量，可以当指纹:
 
@@ -183,7 +183,7 @@ MOV X30， X0    = 0xAA0003FE
 
 ![sub_1D3F4(29.8KB 反篡改主调度器)里的同款自毁:经 X0 清 SP/LR 后 BR X12 跳飞，与 sub_567E0 逐字节相同，是系统性模式，不是单点](./assets/images-fig-dispatcher-suicide.png)
 
-**自毁序列的编码会随 build 变**，这点尤其要注意。最典型的是清 SP/LR 这两条，梆梆有两种写法，一种直接拿零寄存器 `mov sp， xzr`(`0x910003ff`)/`mov lr， xzr`(`0xaa1f03fe`)，另一种经 X0 中转 `mov sp， x0`(`0x9100001f`)/`mov x30， x0`(`0xaa0003fe`)，这份样本走的是后一种，两种字节完全不同。所以拿一份现成的自毁签名 scanner 来扫，很可能一条都命中不了;偏移就更别提了，不同 build 同一偏移指向完全不同的函数，照搬只会认错地方。**判自毁点只能对着手上这份 so、锚整段序列重新逆一遍。**
+**自毁序列的编码会随 build 变**。最典型的是清 SP/LR 这两条，梆梆有两种写法，一种直接拿零寄存器 `mov sp， xzr`(`0x910003ff`)/`mov lr， xzr`(`0xaa1f03fe`)，另一种经 X0 中转 `mov sp， x0`(`0x9100001f`)/`mov x30， x0`(`0xaa0003fe`)，这份样本走的是后一种，两种字节完全不同。所以拿一份现成的自毁签名 scanner 来扫，很可能一条都命中不了;偏移就更别提了，不同 build 同一偏移指向完全不同的函数，照搬只会认错地方。**判自毁点只能对着手上这份 so、锚整段序列重新逆一遍。**
 
 把两种清 SP/LR 编码都纳入识别后再扫，全 `.text` 里 486 个 `br xN`，只命中 5 个自杀点，`sub_12FA4`/`sub_1304C`/`sub_1D3F4`(×2)/`sub_567E0`，零误伤。
 

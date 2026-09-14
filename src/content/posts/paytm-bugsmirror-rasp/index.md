@@ -84,7 +84,7 @@ RASP 用**裸 syscall**(`svc`/`syscall(__NR_openat/ptrace)`)读检测面,libc �
 
 破法:**注入体在进程内自己 dump 自己**。读 `/proc/self/maps` 找目标 so 各可读段,`memcpy` 自身地址空间(此时 `.text` 已 dlopen 期解密)写到 **app 自己的数据目录**(`/data/data/<pkg>/`,untrusted_app 唯一可写处),再 root 拉出。
 
-意外收获:**这套 RASP 字符串未加密**,`strings` 直接出全貌:
+**这套 RASP 字符串未加密**,`strings` 直接出全貌:
 
 - 身份:`libdefender.so`、`paytmdefender.bugsmirror.com`;
 - ~20 个 `Is*CheckEnabled`(`IsDeveloperOption/IsOemUnlocked/IsStrongDeviceIntegrity/IsUsbDebugging/IsVpnDetection/IsPacketSniffing…CheckEnabled`),读加密的 `DefenderConfigFile`;
@@ -155,7 +155,7 @@ do { w9 = *clean_flag; } while ((w9 & 1) == 0);   // 死等看门狗判 clean �
 **设备实测**:
 - 主线程 `R/100%CPU` → **`S / do_epoll_wait`**(正常 Looper 空闲);
 - 焦点 Activity 开屏 → app 主框架 Activity;
-- 正常初始化(音频/GC/Play Integrity 跑完)。**越过开屏。**
+- 正常初始化(音频/GC/Play Integrity 跑完)。越过开屏。
 
 ---
 
@@ -179,4 +179,4 @@ USB 直连 root 开发机上,BugsMirror 多因子(USB 调试 / 开发者选项 /
 
 ---
 
-一个"卡开屏"最后收敛成一条 `ldarb+tbz` 自环和一个字节的写入。RASP 对抗的核心从来不是"和检测硬刚",而是**找到它把裁决落到哪个可写的点上**。
+一个"卡开屏"最后收敛成一条 `ldarb+tbz` 自环和一个字节的写入。RASP 对抗的核心是**找到它把裁决落到哪个可写的点上**,而不是和检测硬刚。
