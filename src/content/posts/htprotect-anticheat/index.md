@@ -23,7 +23,7 @@ tags:
   - 无痕hook
   - FART
 target: 小牛电动 App（包名 `com.niu.cloud`，versionName 5.13.10）
-source: 发表文章/某电动车App-易盾HTProtect反作弊逆向/某盾HTProtect_逆向实战.md
+source: 发表文章/某电动车App-某盾HTProtect反作弊逆向/某盾HTProtect_逆向实战.md
 ---
 
 ## 前言
@@ -44,7 +44,7 @@ jadx 载入 `classes.dex`，只有 31 个类，全在 `com.netease.nis.wrapper` 
 
 #### 1. 二进制布局与加密载荷
 
-ELF 的段分布显示，`libnesec.so` 的可执行代码集中在 `0xE5320`–`0x10D800` 区间（约 160KB）。低地址 `0x191`–`0xE1F00` 处（约 900KB）为 `.gnu.fragment` 段，存放经过加密压缩的真实 DEX 数据。相邻的 `.gnu.stub` 与 `.gnu.draft` 段作为重定位指针表（包含大量形如 `DCQ qword_F0+2` 的偏移定义），用于引导载荷解密与定位。
+ELF 的段分布显示，`libnesec.so` 的可执行代码集中在 `0xE5320`–`0x10D800` 区间。低地址 `0x191`–`0xE1F00` 处为 `.gnu.fragment` 段，存放经过加密压缩的真实 DEX 数据。相邻的 `.gnu.stub` 与 `.gnu.draft` 段作为重定位指针表（包含大量形如 `DCQ qword_F0+2` 的偏移定义），用于引导载荷解密与定位。
 
 #### 2. 内置 zlib 解压引擎与加载流程
 
@@ -158,7 +158,7 @@ SDK 在底层采集设备属性，并在 33 处函数中使用裸 `syscall` 绕�
 
 1. **PLT `__system_property_get`**：仅 `sub_1D6CF0` 一处使用，读取全库唯一的明文属性名 `ro.build.version.sdk`。
 2. **dlsym `__system_property_get`（反 PLT-hook）**：`sub_1D03BC` 内联解密符号名后 `dlsym(NULL,…)` 缓存至 `off_4A4D50`，经带缓存的 `sub_1D1334` 供云机检测例程 `sub_16CBDC` / `sub_16DEFC` 调用，读的就是下面的 `wg.cust.*` 判据。
-3. **PLT `__system_property_find`**：封装成两个通用助手，`sub_1A0374` 按名读值、`sub_1D15D8` 判存在，被 `sub_167848`（20KB）、`sub_170488`（50KB）、`sub_2892E4` 等环境采集器调用；其 key 在各调用点以 libc++ `std::string` 形式在栈上逐字符内联拼装后传入，静态不落 `.rodata`。
+3. **PLT `__system_property_find`**：封装成两个通用助手，`sub_1A0374` 按名读值、`sub_1D15D8` 判存在，被 `sub_167848`、`sub_170488`、`sub_2892E4` 等环境采集器调用；其 key 在各调用点以 libc++ `std::string` 形式在栈上逐字符内联拼装后传入，静态不落 `.rodata`。
 
 除 `ro.build.version.sdk` 外，其余 key 都在栈上动态拼装。数据段中仅残留少量路径字符串，如 `/system/build.prop`（直接解析文件以绕过属性服务接口）、`/system/bin/app_process64`、`/system/bin/linker64` 及 `/proc/self/maps` 等。
 
@@ -304,9 +304,9 @@ if (count(|diff[i]| > 1000ns) > 5) -> 判定 libc 被 hook
 | 反模拟 / 反 DBI | sub_2916D0 → sub_290C90 / 290EE8 / 2912A4 | `mincore` 页驻留侧信道 + `execve(221)` 故意 EFAULT argv，探 `mincore`/`execve` 是否被真实内核忠实处理（反 unidbg/QEMU/Frida-broker） |
 | 注入 .jar / mnt_id | sub_291C90 | 遍历 `/proc/self/fd` 挑指向 `.jar` 的 fd → 读 `/proc/self/fdinfo/` 的 `mnt_id`，`mnt_id≥1001` 判 Zygisk/Xposed bind-mount 注入 |
 | 模拟器/云机 | sub_184DF0 | `/sys/devices/system/cpu` 核数 |
-| 调度 / token | sub_23F5C0(25KB) | OLLVM 平坦化 + 运行时函数指针表间接分发 → 编码进加密 token |
+| 调度 / token | sub_23F5C0 | OLLVM 平坦化 + 运行时函数指针表间接分发 → 编码进加密 token |
 
-所有检测结果汇总到 `sub_23F5C0`（约 25KB），由它调度编码成加密 token，回传 Java 层。数据流关系如下：
+所有检测结果汇总到 `sub_23F5C0`，由它调度编码成加密 token，回传 Java 层。数据流关系如下：
 
 ![image9](./assets/images-flow_arch.png)
 
