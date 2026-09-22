@@ -42,9 +42,17 @@ source: 发表文章/某Unity枪战手游-腾讯ACE与加固metadata取证/index
 
 ![ACE identity and command vocabulary in libanogs.so](./assets/images-03-ace-strings.png)
 
+这些命令字在 native 侧进入 `AnoSDKIoctl` 分发。IDA 里能看到它并不做明文 `strcmp`，而是把命令 hash 成 u32，再用一棵 `CMP / B.GE / B.NE` 比较树逐级分发（图中 `W14` 依次与 `0x34BB`/`0x7A21`/`0xF6BA`… 一堆常量比较）：
+
+![AnoSDKIoctl — hashed-command dispatch tree in IDA](./assets/images-07-ida-anosdk-ioctl.png)
+
 Java 侧桥类 `com.gamesafe.ano.AnoSdk` 负责 `loadLibrary("anogs")` 与全部 native 调用。它的 ioctl 命令字用 **+5 凯撒**做了轻混淆——`a.a("bzo_mzkjmo_yvov")` → `get_report_data`、`a.a("vkk_fzt:")` → `app_key:`、`dec_tss_info`(tss = TenProtect Security)：
 
 ![AnoSdk — the Java↔native bridge of Tencent ACE](./assets/images-01-anosdk.png)
+
+native 侧的引导落在 `JNI_OnLoad`：取 `JavaVM` → `GetEnv`(通过 vtable 偏移间接调用) → `FindClass` / `RegisterNatives` 把上面那些 native 方法注册进去，随后启动 ACE：
+
+![JNI_OnLoad — registers AnoSdk natives and boots ACE](./assets/images-08-ida-jni-onload.png)
 
 检测结果经 `AnoInfoPublisher` 这条异步管道回吐给游戏：后台线程开一条到 native 的 IPC 管道(`ilc_open_pipe`/`ilc_recv_pipe`/`ilc_close_pipe`)，循环 `recv` 检测报文，`type=1` 为命中、`2` 为心跳，派发给注册的 `AnoInfoReceiver`，最终触发踢人：
 
