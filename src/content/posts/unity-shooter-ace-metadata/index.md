@@ -42,9 +42,11 @@ source: 发表文章/某Unity枪战手游-腾讯ACE与加固metadata取证/index
 
 ![ACE identity and command vocabulary in libanogs.so](./assets/images-03-ace-strings.png)
 
-这些命令字在 native 侧进入 `AnoSDKIoctl` 分发。但用 IDA F5 反编译它，出来的不是干净的分支，而是一坨状态机：`v10/v11/v12` 充当 VM 状态寄存器、满屏魔数常量、`while(2)` + `goto LABEL_*` 的解释器循环，中间还夹着 `v17-(v17&~v17)!=v17` 这类**恒假的不透明谓词**做混淆。这就是 ACE 的 **AVM(自研字节码虚拟机)**——命令派发与检测逻辑被整体虚拟化，静态读不到真实分支：
+这些命令字在 native 侧进入 `AnoSDKIoctl` 分发。用 IDA F5 反编译它，出来的不是干净的分支，而是一坨状态机：一个 32-bit 状态变量、满屏魔数常量、`while(2)` + `goto LABEL_*` 的循环，中间还夹着 `v17-(v17&~v17)!=v17` 这类**恒假的不透明谓词**。这不是字节码虚拟机，而是 **控制流平坦化(CFF) + 混合布尔算术(MBA)** —— OLLVM 家族的 `fla + bcf + sub` 那一类编译期 pass（判据：所有 `ldr/uxtw/br` 分发的索引全部由 `csel` 供给、由内存 load 供给 0 次，不存在"取 handler 指针→间接跳"的解释器环）：
 
-![AnoSDKIoctl decompiled — the logic is virtualized into ACE's AVM](./assets/images-07-ida-anosdk-ioctl.png)
+![AnoSDKIoctl decompiled — control-flow flattening + MBA (not a bytecode VM)](./assets/images-07-ida-anosdk-ioctl.png)
+
+把这层平坦化"去平坦化"回去后真相很朴素：**`AnoSDKIoctl` 是个恒等 trampoline**——全函数没有一条指令写 `w0/x0/w1/x1`，魔数状态序列只往废弃栈槽里涂写做诱饵，最后 `mov sp,x29; ldp; b sub_1CF108` 尾调真正的处理器 `sub_1CF108`（同族 CFF）。两个 MBA 谓词都能常量折叠证明恒定（`x&~x=0` 系）。命令分发本身是**明文 `strcmp` 比对运行时解密的字面量**（滚动 XOR 字符串保险库），不是 hash、不是跳转表。ACE 真正意义上的"VM"是另一回事：功能层的 `mvm_*` 扫描脚本解释器（字符串 `Invalid scan script at entry %d`），用来跑云端下发的检测脚本——那是"内置脚本 VM"，和"用 VM 保护自身代码"要分开看。
 
 Java 侧桥类 `com.gamesafe.ano.AnoSdk` 负责 `loadLibrary("anogs")` 与全部 native 调用。它的 ioctl 命令字用 **+5 凯撒**做了轻混淆——`a.a("bzo_mzkjmo_yvov")` → `get_report_data`、`a.a("vkk_fzt:")` → `app_key:`、`dec_tss_info`(tss = TenProtect Security)：
 
@@ -62,7 +64,7 @@ native 侧的引导落在 `JNI_OnLoad`(F5)：取 `JavaVM` → `GetEnv` → 两�
 
 ![libanort.so anti-debug / anti-injection toolkit](./assets/images-06-libanort-antidebug.png)
 
-所以 `libanort` 里 `ptrace`/`fork`/`syscall` 这些 import 虽在，调用点却和 `AnoSDKIoctl` 一样经 AVM 分发，直接反汇编到不了逻辑层——这也是静态扫 `libanogs.so` 只能漏出零星特征串的原因。不 devirtualize AVM，静态深度到此为止。
+`libanort` 里 `ptrace`/`fork`/`syscall` 这些 import 也全包在同族 CFF+MBA 里。把它反混淆开，反调试设计浮出水面：一个手写的 `svc` 系统调用门 `tp_syscall_imp`（自己摆参数直接 `svc #0`，绕开 libc/PLT 上的 inline hook，专治 Frida/xHook）+ `fork`/`execv` 拉起看门狗子进程 + `prctl(PR_SET_DUMPABLE, 1)`（注意值是 1，是放行同族进程 ptrace 本进程，不是反 dump）+ `sigaction` 装 `SIGSEGV/SIGSYS`（**没有** SIGTRAP handler）+ 完整性校验值不符即 `kill(SIGKILL)` 自杀。真正静态到不了的只剩：字符串保险库的明文、`ptrace` 的实际 request（数据驱动的间接调用，静态判不了 TRACEME vs ATTACH）、`svc` 走的具体 syscall 号——这几项要在设备上对 `tp_syscall_imp` 和字符串解密器挂只读 hook 才能收口。
 
 ## L2：加固对 metadata 做了什么，以及怎么绕过
 
