@@ -115,8 +115,8 @@ C# 侧的指纹采集集中在 `Sdk.SDKHelper`(108 方法)：`GetAndroidID`、`G
 
 ## 小结
 
-- 端上真实防护 = **PairIP(壳) + 腾讯 ACE(反作弊，含 TerSafe2/AVM) + metadata 混淆(反静态) + CodeStage ACTk(内存)**，四层职责不重叠。
-- ACE 的强项是**反注入 + AVM 虚拟化**：frida 直连即死，检测逻辑藏在 VM 里静态读不到；但它**挡不住被动的 `/proc/mem` 读取**——解密后的 metadata 在内存里是现成的。
+- 端上真实防护 = **PairIP(壳) + 腾讯 ACE(反作弊，CFF+MBA 自混淆 + 功能层 mvm_* 脚本 VM) + metadata 混淆(反静态) + CodeStage ACTk(内存)**，四层职责不重叠。
+- ACE 的强项是**反注入 + 自身代码 CFF+MBA 混淆**：frida 直连即被 `svc` 门 + 看门狗秒杀，自身逻辑用控制流平坦化藏住（不是字节码 VM，可去平坦化）；但它**挡不住被动的 `/proc/mem` 读取**——解密后的 metadata 在内存里是现成的。
 - 加固对 metadata 的保护是**轻量但有效**的：XOR-0x66 交错块 + 抹零 magic + 非标 header，三招合起来废掉现成 dumper，却挡不住"对比密文明文还原变换 + 重构标准布局"这条路。
 - 方法学上：**先广度铺清防护栈，再对最硬的层做定点深挖**；能被动取证就不硬刚反注入，能离线还原就不在设备上和反作弊拉锯。
 
