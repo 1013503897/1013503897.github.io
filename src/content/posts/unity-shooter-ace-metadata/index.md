@@ -42,17 +42,17 @@ source: 发表文章/某Unity枪战手游-腾讯ACE与加固metadata取证/index
 
 ![ACE identity and command vocabulary in libanogs.so](./assets/images-03-ace-strings.png)
 
-这些命令字在 native 侧进入 `AnoSDKIoctl` 分发。IDA 里能看到它并不做明文 `strcmp`，而是把命令 hash 成 u32，再用一棵 `CMP / B.GE / B.NE` 比较树逐级分发（图中 `W14` 依次与 `0x34BB`/`0x7A21`/`0xF6BA`… 一堆常量比较）：
+这些命令字在 native 侧进入 `AnoSDKIoctl` 分发。但用 IDA F5 反编译它，出来的不是干净的分支，而是一坨状态机：`v10/v11/v12` 充当 VM 状态寄存器、满屏魔数常量、`while(2)` + `goto LABEL_*` 的解释器循环，中间还夹着 `v17-(v17&~v17)!=v17` 这类**恒假的不透明谓词**做混淆。这就是 ACE 的 **AVM(自研字节码虚拟机)**——命令派发与检测逻辑被整体虚拟化，静态读不到真实分支：
 
-![AnoSDKIoctl — hashed-command dispatch tree in IDA](./assets/images-07-ida-anosdk-ioctl.png)
+![AnoSDKIoctl decompiled — the logic is virtualized into ACE's AVM](./assets/images-07-ida-anosdk-ioctl.png)
 
 Java 侧桥类 `com.gamesafe.ano.AnoSdk` 负责 `loadLibrary("anogs")` 与全部 native 调用。它的 ioctl 命令字用 **+5 凯撒**做了轻混淆——`a.a("bzo_mzkjmo_yvov")` → `get_report_data`、`a.a("vkk_fzt:")` → `app_key:`、`dec_tss_info`(tss = TenProtect Security)：
 
 ![AnoSdk — the Java↔native bridge of Tencent ACE](./assets/images-01-anosdk.png)
 
-native 侧的引导落在 `JNI_OnLoad`：取 `JavaVM` → `GetEnv`(通过 vtable 偏移间接调用) → `FindClass` / `RegisterNatives` 把上面那些 native 方法注册进去，随后启动 ACE：
+native 侧的引导落在 `JNI_OnLoad`(F5)：取 `JavaVM` → `GetEnv` → 两次 `FindClass` + `RegisterNatives`（分别注册 3 个和 11 个 native，即上面 `AnoSdk` 那批），随后启动 ACE：
 
-![JNI_OnLoad — registers AnoSdk natives and boots ACE](./assets/images-08-ida-jni-onload.png)
+![JNI_OnLoad decompiled — FindClass + RegisterNatives(3) then (11)](./assets/images-08-ida-jni-onload.png)
 
 检测结果经 `AnoInfoPublisher` 这条异步管道回吐给游戏：后台线程开一条到 native 的 IPC 管道(`ilc_open_pipe`/`ilc_recv_pipe`/`ilc_close_pipe`)，循环 `recv` 检测报文，`type=1` 为命中、`2` 为心跳，派发给注册的 `AnoInfoReceiver`，最终触发踢人：
 
@@ -62,7 +62,7 @@ native 侧的引导落在 `JNI_OnLoad`：取 `JavaVM` → `GetEnv`(通过 vtable
 
 ![libanort.so anti-debug / anti-injection toolkit](./assets/images-06-libanort-antidebug.png)
 
-需要说明的是：ACE 的**检测逻辑本体跑在它自带的字节码 VM(mvm/AVM)里**——上面这些 import 存在，但调用点经 VM 分发，直接反汇编到不了逻辑层。这也是为什么静态扫 `libanogs.so` 只能漏出零星特征串。不 devirtualize AVM，静态深度到此为止。
+所以 `libanort` 里 `ptrace`/`fork`/`syscall` 这些 import 虽在，调用点却和 `AnoSDKIoctl` 一样经 AVM 分发，直接反汇编到不了逻辑层——这也是静态扫 `libanogs.so` 只能漏出零星特征串的原因。不 devirtualize AVM，静态深度到此为止。
 
 ## L2：加固对 metadata 做了什么，以及怎么绕过
 
